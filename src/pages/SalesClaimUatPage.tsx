@@ -30,6 +30,7 @@ type ClaimRecord = {
 };
 
 type Submission = { submission_list_id: string; submission_date: string; agreement_count: number };
+type ClaimHistory = { id: number; event_type: string; old_value: string | null; new_value: string | null; notes: string; created_at: string; changed_by_staff_id: string | null };
 type FeeCase = { application_id: number; total_financing_amount: number | string; deposit: number | string; processing_fee: number | string; sst_amount: number | string; stamp_duty: number | string; actual_cash_payment: number | string; applications: { case_id: string; customer_name: string; ic_number: string } | null };
 
 type EntryForm = {
@@ -64,6 +65,8 @@ const money = (value: number | string) => `RM ${Number(value || 0).toLocaleStrin
 export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
   const [batches, setBatches] = useState<ClaimBatch[]>([]);
   const [records, setRecords] = useState<ClaimRecord[]>([]);
+  const [historyByRecord, setHistoryByRecord] = useState<Record<string, ClaimHistory[]>>({});
+  const [openHistoryId, setOpenHistoryId] = useState('');
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [feeCases, setFeeCases] = useState<FeeCase[]>([]);
   const [feeEdits, setFeeEdits] = useState<Record<number, { processing: string; sst: string; stamp: string }>>({});
@@ -212,6 +215,16 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const toggleHistory = async (record: ClaimRecord) => {
+    if (openHistoryId === record.id) { setOpenHistoryId(''); return; }
+    setOpenHistoryId(record.id);
+    if (historyByRecord[record.id]) return;
+    const { data, error: historyError } = await supabase.from('sales_claim_history')
+      .select('id,event_type,old_value,new_value,notes,created_at,changed_by_staff_id')
+      .eq('sales_claim_record_id', record.id).order('created_at', { ascending: false });
+    if (historyError) setError(historyError.message);
+    else setHistoryByRecord((old) => ({ ...old, [record.id]: (data ?? []) as ClaimHistory[] }));
+  };
   const updateInvestigation = async (record: ClaimRecord, status: string) => {
     setError(''); setSuccess('');
     const { error: updateError } = await supabase.rpc('update_sales_claim_investigation', {
@@ -326,7 +339,7 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
             </label>
             <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
               <table className="min-w-[850px] w-full text-left text-xs">
-                <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-2">CASE ID / Nama</th><th className="p-2">IC</th><th className="p-2 text-right">Finance</th><th className="p-2 text-right">Actual Cash</th><th className="p-2">Claim Status</th><th className="p-2">Investigation</th></tr></thead>
+                <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-2">CASE ID / Nama</th><th className="p-2">IC</th><th className="p-2 text-right">Finance</th><th className="p-2 text-right">Actual Cash</th><th className="p-2">Claim Status</th><th className="p-2">Investigation</th><th className="p-2">History</th></tr></thead>
                 <tbody>
                   {filteredRecords.map((record) => <tr key={record.id} className="border-t border-slate-100">
                     <td className="p-2"><strong>{record.case_id}</strong><span className="block text-slate-500">{record.customer_name}</span></td>
@@ -343,8 +356,18 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
                         {['NOT REVIEWED','UNDER REVIEW','WAITING JCL','RESOLVED','FOLLOW UP'].map((status) => <option key={status}>{status}</option>)}
                       </select>
                     </td>
-                  </tr>)}
-                  {filteredRecords.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-slate-500">Tiada rekod dalam carian ini.</td></tr>}
+                    <td className="p-2"><button type="button" onClick={() => void toggleHistory(record)} className="rounded border border-slate-300 px-2 py-1">History</button></td>
+                  </tr>
+                  {openHistoryId === record.id && <tr className="bg-slate-50"><td colSpan={7} className="p-3">
+                    {(historyByRecord[record.id] ?? []).map((item) => <div key={item.id} className="mb-2 rounded border border-slate-200 bg-white p-2">
+                      <strong>{item.event_type}: {item.old_value ?? '—'} → {item.new_value ?? '—'}</strong>
+                      <p className="text-slate-500">{new Date(item.created_at).toLocaleString('en-MY')} · {item.changed_by_staff_id ?? 'System'}</p>
+                      {item.notes && <p>{item.notes}</p>}
+                    </div>)}
+                    {(historyByRecord[record.id] ?? []).length === 0 && <p className="text-slate-500">Belum ada sejarah perubahan.</p>}
+                  </td></tr>}
+                  )}
+                  {filteredRecords.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-slate-500">Tiada rekod dalam carian ini.</td></tr>}
                 </tbody>
               </table>
             </div>
