@@ -22,6 +22,7 @@ import { SystemSettingsUatPage } from './SystemSettingsUatPage';
 import { UserManagementUatPage } from './UserManagementUatPage';
 import { DashboardUatPage } from './DashboardUatPage';
 import { AgreementHistoryUatPage } from './AgreementHistoryUatPage';
+import { ClaimedHistoryUatPage } from './ClaimedHistoryUatPage';
 import { createSupabaseApplication, loadSupabaseApplicationCaseIds } from '../lib/supabaseApplications';
 import { createNewApplicationTransition, type NewApplicationPayload } from '../utils/businessRules';
 import { buildCoverPagePdfBlob } from '../utils/coverPagePdf';
@@ -324,9 +325,10 @@ export function SupabaseUatPage() {
           )}
           {activePage === 'user-permissions' && <UserManagementUatPage currentUser={session.user} roles={session.roles} branches={session.branches} />}
           {activePage === 'agreement-history' && <AgreementHistoryUatPage onBack={() => navigateTo('dashboard')} />}
-          {['claimed-history','backup-data'].includes(activePage) && (
+          {activePage === 'claimed-history' && <ClaimedHistoryUatPage onBack={() => navigateTo('dashboard')} />}
+          {activePage === 'backup-data' && (
             <div className="rounded-xl border border-slate-200 bg-white p-6">
-              <h2 className="text-base font-semibold">{activePage === 'claimed-history' ? 'Claimed History & Data' : 'Backup Data'}</h2>
+              <h2 className="text-base font-semibold">Backup Data</h2>
               <p className="mt-1 text-sm text-slate-500">Paparan ini akan disiapkan dalam fasa UI seterusnya.</p>
             </div>
           )}
