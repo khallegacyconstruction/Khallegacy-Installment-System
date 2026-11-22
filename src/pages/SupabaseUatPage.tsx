@@ -166,7 +166,7 @@ export function SupabaseUatPage() {
           onSelectApplication={() => undefined}
           recentActivities={[]}
           currentUser={session.user}
-          currentRole={currentRole ?? session.roles[0]}
+          currentRole={currentRole ?? session.roles[0]!}
           allUsers={[session.user]}
           allRoles={session.roles}
           branches={session.branches}
