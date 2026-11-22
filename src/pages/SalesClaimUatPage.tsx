@@ -24,6 +24,10 @@ type ClaimRecord = {
   processing_fee: number | string;
   sst_amount: number | string;
   actual_cash_payment: number | string;
+  agreement_fee: number | string;
+  jcl_finance_amount: number | string | null;
+  jcl_actual_cash_payment: number | string | null;
+  jcl_agreement_fee: number | string | null;
   claim_status: string;
   investigation_status: string;
   remarks: string;
@@ -341,14 +345,18 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
               <input value={search} onChange={(event) => setSearch(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" placeholder="CASE ID / IC / nama / status" />
             </label>
             <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
-              <table className="min-w-[850px] w-full text-left text-xs">
-                <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-2">CASE ID / Nama</th><th className="p-2">IC</th><th className="p-2 text-right">Finance</th><th className="p-2 text-right">Actual Cash</th><th className="p-2">Claim Status</th><th className="p-2">Investigation</th><th className="p-2">History</th></tr></thead>
+              <table className="min-w-[1250px] w-full text-left text-xs">
+                <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-2">CASE ID / Nama</th><th className="p-2">IC</th><th className="p-2 text-right">Finance</th><th className="p-2 text-right">JCL Finance</th><th className="p-2 text-right">Agreement Fee</th><th className="p-2 text-right">JCL Agreement Fee</th><th className="p-2 text-right">Actual Cash</th><th className="p-2 text-right">JCL Actual Cash</th><th className="p-2">Claim Status</th><th className="p-2">Investigation</th><th className="p-2">History</th></tr></thead>
                 <tbody>
                   {filteredRecords.map((record) => <Fragment key={record.id}><tr className="border-t border-slate-100">
                     <td className="p-2"><strong>{record.case_id}</strong><span className="block text-slate-500">{record.customer_name}</span></td>
                     <td className="p-2">{record.ic_number}</td>
                     <td className="p-2 text-right">{money(record.finance_amount)}</td>
+                    <td className="p-2 text-right">{record.jcl_finance_amount == null ? '—' : money(record.jcl_finance_amount)}</td>
+                    <td className="p-2 text-right">{money(record.agreement_fee)}</td>
+                    <td className="p-2 text-right">{record.jcl_agreement_fee == null ? '—' : money(record.jcl_agreement_fee)}</td>
                     <td className="p-2 text-right">{money(record.actual_cash_payment)}</td>
+                    <td className="p-2 text-right">{record.jcl_actual_cash_payment == null ? '—' : money(record.jcl_actual_cash_payment)}</td>
                     <td className="p-2">
                       <select value={record.claim_status} onChange={(event) => void updateClaimStatus(record, event.target.value)} className="rounded border border-slate-300 p-1">
                         {['CLAIMED','NOT YET CLAIMED','DISCREPANCY','PENDING VERIFICATION','CANCELLED'].map((status) => <option key={status}>{status}</option>)}
@@ -361,7 +369,7 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
                     </td>
                     <td className="p-2"><button type="button" onClick={() => void toggleHistory(record)} className="rounded border border-slate-300 px-2 py-1">History</button></td>
                   </tr>
-                  {openHistoryId === record.id && <tr className="bg-slate-50"><td colSpan={7} className="p-3">
+                  {openHistoryId === record.id && <tr className="bg-slate-50"><td colSpan={11} className="p-3">
                     {(historyByRecord[record.id] ?? []).map((item) => <div key={item.id} className="mb-2 rounded border border-slate-200 bg-white p-2">
                       <strong>{item.event_type}: {item.old_value ?? '—'} → {item.new_value ?? '—'}</strong>
                       <p className="text-slate-500">{new Date(item.created_at).toLocaleString('en-MY')} · {item.changed_by_staff_id ?? 'System'}</p>
@@ -370,7 +378,7 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
                     {(historyByRecord[record.id] ?? []).length === 0 && <p className="text-slate-500">Belum ada sejarah perubahan.</p>}
                   </td></tr>}
                   </Fragment>)}
-                  {filteredRecords.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-slate-500">Tiada rekod dalam carian ini.</td></tr>}
+                  {filteredRecords.length === 0 && <tr><td colSpan={11} className="p-6 text-center text-slate-500">Tiada rekod dalam carian ini.</td></tr>}
                 </tbody>
               </table>
             </div>
