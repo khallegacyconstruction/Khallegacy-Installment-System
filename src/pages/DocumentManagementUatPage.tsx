@@ -146,7 +146,7 @@ export function DocumentManagementUatPage({ onBack }: { onBack: () => void }) {
             <select value={documentType} onChange={(event) => setDocumentType(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">{documentTypes.map((type) => <option key={type}>{type}</option>)}</select>
           </label>
           <label className="text-sm font-medium">Fail (PDF / JPG / PNG, maksimum 25MB)
-            <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={handleFile} className="mt-1 block w-full text-sm" />
+            <input key={file ? file.name : "empty"} type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={handleFile} className="mt-1 block w-full text-sm" />
           </label>
           <label className="text-sm font-medium sm:col-span-2">Summary (Optional)
             <input value={summary} onChange={(event) => setSummary(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
