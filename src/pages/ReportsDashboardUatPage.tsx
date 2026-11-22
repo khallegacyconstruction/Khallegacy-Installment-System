@@ -73,7 +73,7 @@ export function ReportsDashboardUatPage({ branches, canExport, onBack }: { branc
   const totalFinance=useMemo(()=>rows.reduce((sum,row)=>sum+row.financing,0),[rows]);
   const totalCash=useMemo(()=>rows.reduce((sum,row)=>sum+row.actual_cash,0),[rows]);
   const claimed=useMemo(()=>rows.filter((row)=>row.claim_status==='CLAIMED').length,[rows]);
-  const pendingChecking=useMemo(()=>rows.filter((row)=>row.agreement_checking!=='Checking Passed').length,[rows]);
+  const pendingChecking=useMemo(()=>rows.filter((row)=>row.agreement_checking!=='PASSED' && row.agreement_checking!=='Checking Passed').length,[rows]);
   const branchSummary=useMemo(()=>{
     const map=new Map<string,{count:number;finance:number;cash:number}>();
     for(const row of rows){const item=map.get(row.branch_name)??{count:0,finance:0,cash:0};item.count+=1;item.finance+=row.financing;item.cash+=row.actual_cash;map.set(row.branch_name,item);}
