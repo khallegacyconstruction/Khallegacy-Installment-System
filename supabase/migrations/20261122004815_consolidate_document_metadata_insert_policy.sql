@@ -1,0 +1,1 @@
+drop policy if exists application_documents_insert_manage_documents on public.application_documents;
