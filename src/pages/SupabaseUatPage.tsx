@@ -23,6 +23,7 @@ import { UserManagementUatPage } from './UserManagementUatPage';
 import { DashboardUatPage } from './DashboardUatPage';
 import { AgreementHistoryUatPage } from './AgreementHistoryUatPage';
 import { ClaimedHistoryUatPage } from './ClaimedHistoryUatPage';
+import { BackupDataPage } from './BackupDataPage';
 import { createSupabaseApplication, loadSupabaseApplicationCaseIds } from '../lib/supabaseApplications';
 import { createNewApplicationTransition, type NewApplicationPayload } from '../utils/businessRules';
 import { buildCoverPagePdfBlob } from '../utils/coverPagePdf';
@@ -125,6 +126,19 @@ export function SupabaseUatPage() {
     } catch (err) {
       setApprovalError(err instanceof Error ? err.message : 'Cover Page PDF gagal dijana.');
     }
+  };
+
+  const handleExportBackupCsv = (filename: string, rows: string[][]) => {
+    const csv = '\\uFEFF' + rows.map((row) => row.map((cell) => `\"${String(cell ?? '').replace(/\"/g, '\"\"')}\"`).join(',')).join('\\r\\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const handleLogout = async () => {
@@ -327,10 +341,12 @@ export function SupabaseUatPage() {
           {activePage === 'agreement-history' && <AgreementHistoryUatPage onBack={() => navigateTo('dashboard')} />}
           {activePage === 'claimed-history' && <ClaimedHistoryUatPage onBack={() => navigateTo('dashboard')} />}
           {activePage === 'backup-data' && (
-            <div className="rounded-xl border border-slate-200 bg-white p-6">
-              <h2 className="text-base font-semibold">Backup Data</h2>
-              <p className="mt-1 text-sm text-slate-500">Paparan ini akan disiapkan dalam fasa UI seterusnya.</p>
-            </div>
+            <BackupDataPage
+              applications={approvalApplications}
+              branches={session.branches}
+              defaultPageSize={10}
+              onExportCsv={handleExportBackupCsv}
+            />
           )}
           {error && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
         </main>
