@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { supabase } from '../lib/supabase';
 
 type ClaimBatch = {
@@ -341,7 +341,7 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
               <table className="min-w-[850px] w-full text-left text-xs">
                 <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-2">CASE ID / Nama</th><th className="p-2">IC</th><th className="p-2 text-right">Finance</th><th className="p-2 text-right">Actual Cash</th><th className="p-2">Claim Status</th><th className="p-2">Investigation</th><th className="p-2">History</th></tr></thead>
                 <tbody>
-                  {filteredRecords.map((record) => <tr key={record.id} className="border-t border-slate-100">
+                  {filteredRecords.map((record) => <Fragment key={record.id}><tr className="border-t border-slate-100">
                     <td className="p-2"><strong>{record.case_id}</strong><span className="block text-slate-500">{record.customer_name}</span></td>
                     <td className="p-2">{record.ic_number}</td>
                     <td className="p-2 text-right">{money(record.finance_amount)}</td>
@@ -366,7 +366,7 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
                     </div>)}
                     {(historyByRecord[record.id] ?? []).length === 0 && <p className="text-slate-500">Belum ada sejarah perubahan.</p>}
                   </td></tr>}
-                  )}
+                  </Fragment>)}
                   {filteredRecords.length === 0 && <tr><td colSpan={7} className="p-6 text-center text-slate-500">Tiada rekod dalam carian ini.</td></tr>}
                 </tbody>
               </table>
