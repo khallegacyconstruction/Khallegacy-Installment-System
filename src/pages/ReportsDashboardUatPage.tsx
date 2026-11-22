@@ -2,121 +2,64 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Branch } from '../types/khallegacy';
 import { supabase } from '../lib/supabase';
 
-type ApplicationRow = {
-  id: number; case_id: string; customer_name: string; ic_number: string; phone: string;
-  customer_from_branch_id: string; application_date: string; approval_status: string;
-};
-type FinanceRow = { application_id: number; total_financing_amount: number | string; actual_cash_payment: number | string };
-type TaskRow = { application_id: number; stock_status: string; passed_stock: string; agreement_received: string; agreement_checking: string; agreement_submission: string; agreement_claimed: string };
-type AgreementRow = { application_id: number; checking_status: string; claimed_date: string | null; sale_submission_id: string | null };
-type ReportRow = ApplicationRow & {
-  branch_name: string; financing: number; actual_cash: number; stock_status: string;
-  agreement_checking: string; submission_status: string; claim_status: string; claimed_date: string | null;
-};
+type App = {id:number;case_id:string;customer_name:string;ic_number:string;pickup_branch_id:string|null;application_date:string;approval_date:string|null;approval_status:string;category:string|null;pickup_name:string;products:Product[];stock:Stock|null;task:Task|null;agreement:Agreement|null};
+type Product = {application_id:number;product_name:string;category:string|null;model:string|null};
+type Stock = {colour:string|null;colour2:string|null;colour3:string|null;stock_stage:string|null;customer_decision:string|null;remark:string|null};
+type Task = {agreement_received:string|null;agreement_checking:string|null};
+type Agreement = {received_at:string|null;checking_status:string|null};
+type Counts = {approved:number;cancelled:number};
+const today=()=>new Date().toLocaleDateString('en-CA');
+const monthStart=()=>{const d=new Date();return new Date(d.getFullYear(),d.getMonth(),1).toLocaleDateString('en-CA');};
+const key=(v:string|null|undefined)=>v?v.slice(0,7):'';
+const label=(v:string)=>new Date(v+'-01T00:00:00').toLocaleDateString('en-MY',{month:'short',year:'numeric'});
+const icGender=(v:string)=>{const d=v.replace(/\D/g,'');return d.length>=12?(Number(d.slice(-1))%2?'Lelaki':'Perempuan'):null;};
+const icAge=(v:string)=>{const d=v.replace(/\D/g,'');if(d.length<6)return null;const yy=Number(d.slice(0,2)),m=Number(d.slice(2,4)),day=Number(d.slice(4,6));if(m<1||m>12||day<1||day>31)return null;const now=new Date(),year=yy>now.getFullYear()%100?1900+yy:2000+yy;let age=now.getFullYear()-year;if(now.getMonth()+1<m||(now.getMonth()+1===m&&now.getDate()<day))age--;return age>=0&&age<120?age:null;};
+const band=(age:number|null)=>age===null?null:age<=19?'18-19 years':age<=25?'20-25 years':age<=29?'26-29 years':age<=39?'30-39 years':age<=49?'40-49 years':'More than 50 years';
+const approved=(a:App)=>a.approval_status.toLowerCase()==='approved';
+const cancelled=(a:App)=>(a.stock?.customer_decision??'').toUpperCase()==='CANCELLED';
+const received=(a:App)=>!!a.agreement?.received_at||(a.task?.agreement_received??'').toUpperCase()==='RECEIVED';
+const passed=(a:App)=>['checking passed','passed'].includes((a.agreement?.checking_status??a.task?.agreement_checking??'').toLowerCase());
+const csv=(v:unknown)=>'"'+String(v??'').replace(/"/g,'""')+'"';
+const Table=({heads,rows,empty}:{heads:string[];rows:(string|number)[][];empty:string})=><div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left text-[11px]"><thead className="bg-slate-50 text-[10px] uppercase text-slate-500"><tr>{heads.map(h=><th key={h} className="px-3 py-2.5">{h}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={i} className="border-t border-slate-100">{r.map((v,j)=><td key={j} className="whitespace-nowrap px-3 py-2.5">{v}</td>)}</tr>):<tr><td colSpan={heads.length} className="p-5 text-center text-slate-400">{empty}</td></tr>}</tbody></table></div>;
+const Heading=({title,desc,icon}:{title:string;desc:string;icon:string})=><div className="mb-3 flex items-center gap-3"><span className="rounded-lg bg-blue-50 p-2 text-blue-600">{icon}</span><div><h3 className="text-sm font-bold">{title}</h3><p className="text-[11px] text-slate-500">{desc}</p></div></div>;
 
-const today = () => new Date().toLocaleDateString('en-CA');
-const monthStart = () => {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString('en-CA');
-};
-const money = (value: number) => `RM ${value.toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-const csvCell = (value: unknown) => `"${String(value ?? '').replace(/"/g,'""')}"`;
-
-export function ReportsDashboardUatPage({ branches, canExport, onBack }: { branches: Branch[]; canExport: boolean; onBack: () => void }) {
-  const [startDate,setStartDate]=useState(monthStart);
-  const [endDate,setEndDate]=useState(today);
-  const [branchId,setBranchId]=useState('');
-  const [rows,setRows]=useState<ReportRow[]>([]);
-  const [loading,setLoading]=useState(true);
-  const [error,setError]=useState('');
-  const [notice,setNotice]=useState('');
-
-  const load=useCallback(async()=>{
-    setLoading(true);setError('');setNotice('');
-    let appQuery=supabase.from('applications')
-      .select('id,case_id,customer_name,ic_number,phone,customer_from_branch_id,application_date,approval_status')
-      .gte('application_date',startDate).lte('application_date',endDate)
-      .order('application_date',{ascending:false}).limit(1000);
-    if(branchId) appQuery=appQuery.eq('customer_from_branch_id',branchId);
-    const {data:apps,error:appError}=await appQuery;
-    if(appError){setError(appError.message);setRows([]);setLoading(false);return;}
-    const ids=(apps??[]).map((item)=>item.id);
-    if(!ids.length){setRows([]);setLoading(false);return;}
-    const [financeResult,taskResult,agreementResult]=await Promise.all([
-      supabase.from('application_financing').select('application_id,total_financing_amount,actual_cash_payment').in('application_id',ids),
-      supabase.from('application_task_status').select('application_id,stock_status,passed_stock,agreement_received,agreement_checking,agreement_submission,agreement_claimed').in('application_id',ids),
-      supabase.from('application_agreements').select('application_id,checking_status,claimed_date,sale_submission_id').in('application_id',ids),
-    ]);
-    const relatedError=financeResult.error||taskResult.error||agreementResult.error;
-    if(relatedError){setError(relatedError.message);setRows([]);setLoading(false);return;}
-    const financeMap=new Map((financeResult.data??[]).map((row)=>[row.application_id,row] as const));
-    const taskMap=new Map((taskResult.data??[]).map((row)=>[row.application_id,row] as const));
-    const agreementMap=new Map((agreementResult.data??[]).map((row)=>[row.application_id,row] as const));
-    setRows((apps??[]).map((app)=>{
-      const f=financeMap.get(app.id);const t=taskMap.get(app.id);const a=agreementMap.get(app.id);
-      return {
-        ...app,
-        branch_name:branches.find((b)=>b.id===app.customer_from_branch_id)?.name??app.customer_from_branch_id,
-        financing:Number(f?.total_financing_amount??0),actual_cash:Number(f?.actual_cash_payment??0),
-        stock_status:t?.passed_stock==='PASSED'?'PASSED':t?.stock_status??'—',
-        agreement_checking:a?.checking_status??t?.agreement_checking??'—',
-        submission_status:t?.agreement_submission??'PENDING',
-        claim_status:a?.claimed_date||t?.agreement_claimed==='CLAIMED'?'CLAIMED':'NOT YET CLAIMED',
-        claimed_date:a?.claimed_date??null,
-      };
-    }));
-    setLoading(false);
-  },[startDate,endDate,branchId,branches]);
-
-  useEffect(()=>{void load();},[load]);
-
-  const totalFinance=useMemo(()=>rows.reduce((sum,row)=>sum+row.financing,0),[rows]);
-  const totalCash=useMemo(()=>rows.reduce((sum,row)=>sum+row.actual_cash,0),[rows]);
-  const claimed=useMemo(()=>rows.filter((row)=>row.claim_status==='CLAIMED').length,[rows]);
-  const pendingChecking=useMemo(()=>rows.filter((row)=>row.agreement_checking!=='PASSED' && row.agreement_checking!=='Checking Passed').length,[rows]);
-  const branchSummary=useMemo(()=>{
-    const map=new Map<string,{count:number;finance:number;cash:number}>();
-    for(const row of rows){const item=map.get(row.branch_name)??{count:0,finance:0,cash:0};item.count+=1;item.finance+=row.financing;item.cash+=row.actual_cash;map.set(row.branch_name,item);}
-    return [...map.entries()].sort((a,b)=>b[1].count-a[1].count);
-  },[rows]);
-
-  const exportCsv=()=>{
-    const header=['Application Date','CASE ID','Customer Name','IC Number','Phone','Branch','Approval Status','Financing Amount','Actual Cash Payment','Stock','Agreement Checking','Submission','Claim Status','Claimed Date'];
-    const body=rows.map((r)=>[r.application_date,r.case_id,r.customer_name,r.ic_number,r.phone,r.branch_name,r.approval_status,r.financing.toFixed(2),r.actual_cash.toFixed(2),r.stock_status,r.agreement_checking,r.submission_status,r.claim_status,r.claimed_date??'']);
-    const csv=[header,...body].map((line)=>line.map(csvCell).join(',')).join('\r\n');
-    const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
-    const url=URL.createObjectURL(blob);const anchor=document.createElement('a');
-    anchor.href=url;anchor.download=`khallegacy-report-${startDate}-to-${endDate}.csv`;
-    document.body.appendChild(anchor);anchor.click();anchor.remove();URL.revokeObjectURL(url);
-    setNotice('Laporan CSV berjaya dijana.');
-  };
-
-  return <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-    <header className="flex flex-wrap items-start justify-between gap-3">
-      <div><p className="text-xs font-semibold uppercase tracking-widest text-blue-700">Supabase UAT · Live Data</p><h2 className="mt-1 text-xl font-bold">Reports & Dashboard</h2><p className="mt-1 text-sm text-slate-500">Ringkasan operasi dan kewangan berdasarkan rekod Supabase sebenar.</p></div>
-      <div className="flex gap-2"><button type="button" onClick={()=>void load()} disabled={loading} className="rounded-lg border px-3 py-2 text-sm font-semibold">Refresh</button><button type="button" onClick={onBack} className="rounded-lg border px-3 py-2 text-sm font-semibold">Kembali</button></div>
-    </header>
-    {error&&<p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-    {notice&&<p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
-    <div className="grid gap-3 sm:grid-cols-3">
-      <label className="text-sm font-medium">From Date<input type="date" value={startDate} onChange={(e)=>setStartDate(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"/></label>
-      <label className="text-sm font-medium">To Date<input type="date" value={endDate} onChange={(e)=>setEndDate(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"/></label>
-      <label className="text-sm font-medium">Branch<select value={branchId} onChange={(e)=>setBranchId(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"><option value="">All Branches</option>{branches.map((b)=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
-    </div>
-    <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm text-slate-500">{loading?'Memuatkan data...':`Menunjukkan ${rows.length} permohonan bagi ${startDate} hingga ${endDate}.`}</p>{canExport&&<button type="button" onClick={exportCsv} disabled={loading||rows.length===0} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Export CSV</button>}</div>
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs text-slate-500">Applications</p><p className="mt-1 text-2xl font-bold">{rows.length}</p></div>
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs text-slate-500">Total Financing</p><p className="mt-1 text-xl font-bold">{money(totalFinance)}</p></div>
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs text-slate-500">Actual Cash Payment</p><p className="mt-1 text-xl font-bold">{money(totalCash)}</p></div>
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-xs text-slate-500">Claimed / Pending Checking</p><p className="mt-1 text-2xl font-bold">{claimed} / {pendingChecking}</p></div>
-    </div>
-    <div className="rounded-xl border border-slate-200 p-4">
-      <h3 className="font-semibold">Branch Performance</h3>
-      <div className="mt-3 overflow-x-auto"><table className="min-w-[550px] w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="p-3">Branch</th><th className="p-3 text-right">Applications</th><th className="p-3 text-right">Financing</th><th className="p-3 text-right">Actual Cash</th></tr></thead><tbody>{branchSummary.map(([name,value])=><tr key={name} className="border-t"><td className="p-3">{name}</td><td className="p-3 text-right">{value.count}</td><td className="p-3 text-right">{money(value.finance)}</td><td className="p-3 text-right">{money(value.cash)}</td></tr>)}{branchSummary.length===0&&<tr><td colSpan={4} className="p-5 text-center text-slate-500">Tiada data.</td></tr>}</tbody></table></div>
-    </div>
-    <div className="rounded-xl border border-slate-200 p-4">
-      <h3 className="font-semibold">Application Report</h3>
-      <div className="mt-3 overflow-x-auto"><table className="min-w-[1100px] w-full text-left text-xs"><thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-3">Date / CASE ID</th><th className="p-3">Customer</th><th className="p-3">Branch</th><th className="p-3">Financing</th><th className="p-3">Actual Cash</th><th className="p-3">Stock</th><th className="p-3">Checking</th><th className="p-3">Submission</th><th className="p-3">Claim</th></tr></thead><tbody>{rows.map((row)=><tr key={row.id} className="border-t"><td className="p-3">{row.application_date}<strong className="block">{row.case_id}</strong></td><td className="p-3">{row.customer_name}<span className="block text-slate-500">{row.ic_number}</span></td><td className="p-3">{row.branch_name}</td><td className="p-3 text-right">{money(row.financing)}</td><td className="p-3 text-right">{money(row.actual_cash)}</td><td className="p-3">{row.stock_status}</td><td className="p-3">{row.agreement_checking}</td><td className="p-3">{row.submission_status}</td><td className="p-3">{row.claim_status}</td></tr>)}{rows.length===0&&<tr><td colSpan={9} className="p-6 text-center text-slate-500">Tiada rekod untuk tempoh ini.</td></tr>}</tbody></table></div>
-    </div>
-  </section>;
+export function ReportsDashboardUatPage({branches,canExport,onBack}:{branches:Branch[];canExport:boolean;onBack:()=>void}){
+ const [start,setStart]=useState(monthStart),[end,setEnd]=useState(today),[branch,setBranch]=useState(''),[apps,setApps]=useState<App[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[searchA,setSearchA]=useState(''),[searchB,setSearchB]=useState('');
+ const load=useCallback(async()=>{
+  setLoading(true);setError('');
+  const q=await supabase.from('applications').select('id,case_id,customer_name,ic_number,pickup_branch_id,application_date,approval_date,approval_status,category').gte('application_date',start).lte('application_date',end).order('application_date',{ascending:false}).limit(5000);
+  if(q.error){setError(q.error.message);setApps([]);setLoading(false);return;}
+  const ids=(q.data??[]).map(x=>x.id);if(!ids.length){setApps([]);setLoading(false);return;}
+  const [p,s,t,a]=await Promise.all([supabase.from('application_products').select('application_id,product_name,category,model').in('application_id',ids),supabase.from('application_stock_followups').select('application_id,colour,colour2,colour3,stock_stage,customer_decision,remark').in('application_id',ids),supabase.from('application_task_status').select('application_id,agreement_received,agreement_checking').in('application_id',ids),supabase.from('application_agreements').select('application_id,received_at,checking_status').in('application_id',ids)]);
+  const err=p.error||s.error||t.error||a.error;if(err){setError(err.message);setApps([]);setLoading(false);return;}
+  const grouped=new Map<number,Product[]>();(p.data??[]).forEach(x=>grouped.set(x.application_id,[...(grouped.get(x.application_id)??[]),x as Product]));
+  const sm=new Map((s.data??[]).map(x=>[x.application_id,x as Stock])),tm=new Map((t.data??[]).map(x=>[x.application_id,x as Task])),am=new Map((a.data??[]).map(x=>[x.application_id,x as Agreement]));
+  setApps((q.data??[]).map(x=>({...x,pickup_name:branches.find(b=>b.id===x.pickup_branch_id)?.name??x.pickup_branch_id??'Belum Ditentukan',products:grouped.get(x.id)??[],stock:sm.get(x.id)??null,task:tm.get(x.id)??null,agreement:am.get(x.id)??null} as App)));setLoading(false);
+ },[start,end,branches]);
+ useEffect(()=>{void load();},[load]);
+ const rows=useMemo(()=>apps.filter(a=>!branch||a.pickup_branch_id===branch),[apps,branch]);
+ const months=useMemo(()=>{const out:string[]=[];const d=new Date(start.slice(0,7)+'-01T00:00:00'),last=new Date(end.slice(0,7)+'-01T00:00:00');while(d<=last){out.push(d.toISOString().slice(0,7));d.setMonth(d.getMonth()+1);}return out;},[start,end]);
+ const noStock=rows.filter(a=>(a.stock?.stock_stage??'').toUpperCase()==='NO STOCK'),otw=rows.filter(a=>['IN TRANSIT','STOK OTW'].includes((a.stock?.stock_stage??'').toUpperCase()));
+ const monthly=months.map(m=>{const list=rows.filter(a=>key(a.approval_date||a.application_date)===m),ap=list.filter(approved).length,rec=list.filter(received).length;return {m,ap,can:list.filter(cancelled).length,agreement:list.filter(passed).length,rec,to:Math.max(0,ap-rec)};});
+ const cats=months.map(m=>{const c:{m:string;Apple:number;Android:number;Game:number;Home:number;total:number}={m,Apple:0,Android:0,Game:0,Home:0,total:0};rows.filter(a=>key(a.application_date)===m).forEach(a=>(a.products.length?a.products:[{category:a.category} as Product]).forEach(p=>{const v=(p.category??a.category??'').toLowerCase();if(v.includes('android'))c.Android++;else if(v.includes('game')||v.includes('console'))c.Game++;else if(v.includes('home')||v.includes('appliance'))c.Home++;else c.Apple++;c.total++;}));return c;});
+ const gender=(g:string):Counts=>rows.reduce((x,a)=>{if(icGender(a.ic_number)===g&&approved(a))x.approved++;if(icGender(a.ic_number)===g&&cancelled(a))x.cancelled++;return x;},{approved:0,cancelled:0});
+ const male=gender('Lelaki'),female=gender('Perempuan'),allGender={approved:male.approved+female.approved,cancelled:male.cancelled+female.cancelled};
+ const ageGroups=['18-19 years','20-25 years','26-29 years','30-39 years','40-49 years','More than 50 years'];
+ const ages=ageGroups.map(g=>rows.reduce((x,a)=>{if(band(icAge(a.ic_number))===g){if(approved(a))x.approved++;if(cancelled(a))x.cancelled++;}return x;},{group:g,approved:0,cancelled:0}));
+ const percent=(v:number,total:number)=>total?Math.round(v/total*100):0;
+ const exportAll=()=>{const data:string[][]=[['REPORT A — NO STOCK LIST'],['NO','NAME','PRODUCT','COLOUR','PICKUP BRANCH','REMARKS'],...noStock.map((a,i)=>[String(i+1),a.customer_name,a.products.map(p=>p.product_name).join('; '),[a.stock?.colour,a.stock?.colour2,a.stock?.colour3].filter(Boolean).join(', '),a.pickup_name,a.stock?.remark??'']),[],['REPORT B — STOCK OTW LIST'],['NO','NAME','PRODUCT','COLOUR','PICKUP BRANCH','REMARKS'],...otw.map((a,i)=>[String(i+1),a.customer_name,a.products.map(p=>p.product_name).join('; '),[a.stock?.colour,a.stock?.colour2,a.stock?.colour3].filter(Boolean).join(', '),a.pickup_name,a.stock?.remark??'']),[],['REPORT C — MONTHLY PERFORMANCE'],['MONTH','TOTAL APPROVED','CUSTOMER CANCELLED','TOTAL AGREEMENT','AGREEMENT RECEIVED','AGREEMENT TO BE RECEIVED'],...monthly.map(r=>[label(r.m),String(r.ap),String(r.can),String(r.agreement),String(r.rec),String(r.to)]),[],['REPORT D — CATEGORY PRODUCT BY MONTH'],['MONTH','APPLE','ANDROID','GAME CONSOLE','HOME APPLIANCE','TOTAL'],...cats.map(r=>[label(r.m),String(r.Apple),String(r.Android),String(r.Game),String(r.Home),String(r.total)]),[],['REPORT E — APPLICANT BY GENDER'],['GENDER','APPROVED','CANCEL','TOTAL'],['Lelaki',String(male.approved),String(male.cancelled),String(male.approved+male.cancelled)],['Perempuan',String(female.approved),String(female.cancelled),String(female.approved+female.cancelled)],[],['REPORT F — APPLICANT BY AGE GROUP'],['GROUP AGE','TOTAL APPROVED','TOTAL CANCEL','TOTAL APPLICANTS'],...ages.map(r=>[r.group,String(r.approved),String(r.cancelled),String(r.approved+r.cancelled)])];const blob=new Blob(['\ufeff'+data.map(r=>r.map(csv).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8;'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='Khallegacy-Reports-'+start+'-to-'+end+'.csv';a.click();URL.revokeObjectURL(url);};
+ const stockRows=(list:App[],q:string)=>list.filter(a=>[a.customer_name,a.case_id,a.products.map(p=>p.product_name).join(' '),a.pickup_name].join(' ').toLowerCase().includes(q.toLowerCase()));
+ const genderCard=(title:string,v:Counts)=><div className="rounded-lg border border-slate-100 p-3"><h4 className="text-[11px] font-semibold">{title}</h4><p className="text-[10px] text-slate-400">Percentage breakdown</p><div className="flex justify-center py-3"><div className="flex h-24 w-24 items-center justify-center rounded-full" style={{background:'conic-gradient(#2563eb 0 '+percent(v.approved,v.approved+v.cancelled)+'%, #ec4899 '+percent(v.approved,v.approved+v.cancelled)+'% 100%)'}}><div className="flex h-16 w-16 flex-col items-center justify-center rounded-full bg-white"><b>{v.approved+v.cancelled}</b><span className="text-[8px] text-slate-400">TOTAL</span></div></div></div><div className="flex justify-between border-t pt-2 text-[10px]"><span className="text-blue-600">● Approved {v.approved} ({percent(v.approved,v.approved+v.cancelled)}%)</span><span className="text-pink-600">● Cancel {v.cancelled} ({percent(v.cancelled,v.approved+v.cancelled)}%)</span></div></div>;
+ return <section className="space-y-4">
+ <div className="print:hidden flex items-center justify-between"><div><p className="text-[11px] text-slate-400">Khallegacy　›　Reports</p><h2 className="text-lg font-bold">Reports &amp; Analytics</h2></div><div className="flex gap-2"><button onClick={()=>void load()} className="rounded border px-3 py-2 text-xs">Refresh</button><button onClick={onBack} className="rounded border px-3 py-2 text-xs">Back</button></div></div>
+ <div className="print:hidden rounded-xl border bg-white p-3 shadow-sm"><div className="grid gap-3 sm:grid-cols-4"><label className="text-[11px] text-slate-500">Date From<input type="date" value={start} max={end} onChange={e=>setStart(e.target.value)} className="mt-1 w-full rounded border p-2 text-xs"/></label><label className="text-[11px] text-slate-500">Date To<input type="date" value={end} min={start} onChange={e=>setEnd(e.target.value)} className="mt-1 w-full rounded border p-2 text-xs"/></label><label className="text-[11px] text-slate-500">Branch Filter — Pickup Branch<select value={branch} onChange={e=>setBranch(e.target.value)} className="mt-1 w-full rounded border p-2 text-xs"><option value="">All Branches</option>{branches.filter(b=>b.branchType!=='WEB').map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label><div className="flex items-end gap-2"><button onClick={()=>{setStart(monthStart());setEnd(today());setBranch('');}} className="rounded border px-3 py-2 text-[11px]">Reset Filters</button>{canExport&&<button onClick={exportAll} disabled={loading} className="rounded bg-emerald-50 px-3 py-2 text-[11px] font-semibold text-emerald-700">Export Excel (All Reports)</button>}<button onClick={()=>window.print()} className="rounded border px-3 py-2 text-[11px]">Print Report</button></div></div>{error&&<p className="mt-3 rounded bg-red-50 p-2 text-xs text-red-700">{error}</p>}{loading&&<p className="mt-3 text-xs text-blue-600">Loading report data…</p>}</div>
+ <div id="reports-print-area" className="space-y-4">
+ <section className="rounded-xl border bg-white p-3 shadow-sm">{Heading({title:'Report A — NO STOCK LIST',desc:'List of customer orders currently awaiting stock availability',icon:'▧'})}<div className="mb-2 flex items-center justify-between"><b className="rounded-full bg-red-50 px-2 py-1 text-[10px] text-red-600">{noStock.length} Records</b><input value={searchA} onChange={e=>setSearchA(e.target.value)} placeholder="Search No Stock records..." className="print:hidden w-52 rounded border px-2 py-1.5 text-[10px]"/></div><Table heads={['NO','NAME','PRODUCT','COLOUR','PICKUP BRANCH','REMARKS']} rows={stockRows(noStock,searchA).map((a,i)=>[i+1,a.customer_name,a.products.map(p=>p.product_name).join(', ')||'—',[a.stock?.colour,a.stock?.colour2,a.stock?.colour3].filter(Boolean).join(', ')||'—',a.pickup_name,a.stock?.remark||'—'])} empty="No orders in 'NO STOCK' stage for the selected filters."/></section>
+ <section className="rounded-xl border bg-white p-3 shadow-sm">{Heading({title:'Report B — STOCK OTW LIST',desc:'Orders with stock currently in transit or on the way from suppliers',icon:'▣'})}<div className="mb-2 flex items-center justify-between"><b className="rounded-full bg-amber-50 px-2 py-1 text-[10px] text-amber-700">{otw.length} Records</b><input value={searchB} onChange={e=>setSearchB(e.target.value)} placeholder="Search Stock OTW records..." className="print:hidden w-52 rounded border px-2 py-1.5 text-[10px]"/></div><Table heads={['NO','NAME','PRODUCT','COLOUR','PICKUP BRANCH','REMARKS']} rows={stockRows(otw,searchB).map((a,i)=>[i+1,a.customer_name,a.products.map(p=>p.product_name).join(', ')||'—',[a.stock?.colour,a.stock?.colour2,a.stock?.colour3].filter(Boolean).join(', ')||'—',a.pickup_name,a.stock?.remark||'—'])} empty="No orders in 'STOCK OTW / IN TRANSIT' stage for the selected filters."/></section>
+ <section className="rounded-xl border bg-white p-3 shadow-sm">{Heading({title:'Report C — Monthly Performance',desc:'Monthly breakdown of approvals, customer cancellations, stock readiness, and agreement workflow',icon:'▦'})}<Table heads={['MONTH','TOTAL APPROVED','CUSTOMER CANCELLED','TOTAL AGREEMENT','AGREEMENT RECEIVED','AGREEMENT TO BE RECEIVED']} rows={[...monthly.map(r=>[label(r.m),r.ap,r.can,r.agreement,r.rec,r.to]),['Total',monthly.reduce((s,r)=>s+r.ap,0),monthly.reduce((s,r)=>s+r.can,0),monthly.reduce((s,r)=>s+r.agreement,0),monthly.reduce((s,r)=>s+r.rec,0),monthly.reduce((s,r)=>s+r.to,0)] as (string|number)[][]} empty="No monthly records."/></section>
+ <section className="rounded-xl border bg-white p-3 shadow-sm">{Heading({title:'Report D — Category Product by Month',desc:'Monthly product category volume across Apple, Android, Game & Console, and Home Appliance',icon:'▤'})}<Table heads={['MONTH','APPLE','ANDROID','GAME CONSOLE','HOME APPLIANCE','TOTAL']} rows={[...cats.map(r=>[label(r.m),r.Apple,r.Android,r.Game,r.Home,r.total]),['Total',cats.reduce((s,r)=>s+r.Apple,0),cats.reduce((s,r)=>s+r.Android,0),cats.reduce((s,r)=>s+r.Game,0),cats.reduce((s,r)=>s+r.Home,0),cats.reduce((s,r)=>s+r.total,0)] as (string|number)[][]} empty="No category records."/></section>
+ <section className="space-y-3 rounded-xl border bg-white p-3 shadow-sm">{Heading({title:'Report E — Applicant by Gender',desc:'Analysis based on Malaysian NRIC: Ganjil = Lelaki, Genap = Perempuan',icon:'◉'})}<div className="grid gap-3 md:grid-cols-2">{genderCard('Approved Applicants by Gender',male)}{genderCard('Cancelled Applicants by Gender',female)}</div><div className="rounded-lg border p-3"><h4 className="mb-3 text-[11px] font-semibold">HORIZONTAL STATUS BAR CHART — APPLICANT BY GENDER</h4>{[{name:'Lelaki',...male},{name:'Perempuan',...female},{name:'Keseluruhan (Semua Pemohon)',...allGender}].map(r=>{const total=r.approved+r.cancelled;return <div key={r.name} className="mb-3 rounded border p-2"><div className="mb-1 flex justify-between text-[9px]"><b>{r.name}</b><span>Cancel {r.cancelled} ({percent(r.cancelled,total)}%)　Approved {r.approved} ({percent(r.approved,total)}%)　Total {total}</span></div><div className="flex h-4 overflow-hidden rounded bg-slate-100"><div className="bg-pink-400" style={{width:percent(r.cancelled,total)+'%'}}/><div className="bg-emerald-500" style={{width:percent(r.approved,total)+'%'}}/></div></div>;})}</div><Table heads={['GENDER','APPROVED','CANCEL','TOTAL']} rows={[[ 'Lelaki (Last Digit IC Ganjil)',male.approved,male.cancelled,male.approved+male.cancelled],['Perempuan (Last Digit IC Genap)',female.approved,female.cancelled,female.approved+female.cancelled],['Total',allGender.approved,allGender.cancelled,allGender.approved+allGender.cancelled]]} empty="No gender data."/></section>
+ <section className="space-y-3 rounded-xl border bg-white p-3 shadow-sm">{Heading({title:'Report F — Applicant by Age Group',desc:'Distribution of customer approvals and cancellations across age brackets derived from MyKad birth year',icon:'▥'})}<div className="rounded-lg border p-3"><div className="mb-3 flex justify-between text-[10px]"><b>Approved vs Cancelled Volume by Age Group</b><span className="text-emerald-600">■ Approved　<span className="text-pink-600">■ Cancelled</span></span></div><div className="flex h-36 items-end justify-around gap-2 border-b">{ages.map(r=>{const max=Math.max(1,...ages.map(x=>x.approved+x.cancelled));return <div key={r.group} className="flex h-full flex-1 flex-col items-center justify-end"><div className="flex h-[82%] items-end gap-1"><div className="w-3 rounded-t bg-emerald-500" style={{height:(r.approved/max*100)+'%',minHeight:r.approved?3:0}}/><div className="w-3 rounded-t bg-pink-500" style={{height:(r.cancelled/max*100)+'%',minHeight:r.cancelled?3:0}}/></div><span className="mt-2 text-center text-[8px] text-slate-500">{r.group}</span></div>;})}</div></div><Table heads={['GROUP AGE','TOTAL APPROVED','TOTAL CANCEL','TOTAL APPLICANTS']} rows={[...ages.map(r=>[r.group,r.approved,r.cancelled,r.approved+r.cancelled]),['Total',ages.reduce((s,r)=>s+r.approved,0),ages.reduce((s,r)=>s+r.cancelled,0),ages.reduce((s,r)=>s+r.approved+r.cancelled,0)] as (string|number)[][]} empty="No age-group records."/></section>
+ </div><style>{'@media print{body{background:#fff!important}#reports-print-area section{break-inside:avoid;box-shadow:none!important;margin-bottom:12px}main{max-width:none!important;padding:0!important}}'}</style>
+ </section>;
 }
