@@ -20,6 +20,7 @@ import { StockManagementUatPage } from './StockManagementUatPage';
 import { ReportsDashboardUatPage } from './ReportsDashboardUatPage';
 import { SystemSettingsUatPage } from './SystemSettingsUatPage';
 import { UserManagementUatPage } from './UserManagementUatPage';
+import { DashboardUatPage } from './DashboardUatPage';
 import { createSupabaseApplication, loadSupabaseApplicationCaseIds } from '../lib/supabaseApplications';
 import { createNewApplicationTransition, type NewApplicationPayload } from '../utils/businessRules';
 import { buildCoverPagePdfBlob } from '../utils/coverPagePdf';
@@ -318,20 +319,7 @@ export function SupabaseUatPage() {
           {activePage === 'reports-analytics' && <ReportsDashboardUatPage branches={session.branches} canExport={hasPermission('export_reports')} onBack={() => navigateTo('dashboard')} />}
           {activePage === 'system-settings' && <SystemSettingsUatPage branches={session.branches} couriers={workspace?.couriers ?? []} onBack={() => navigateTo('dashboard')} />}
           {activePage === 'dashboard' && (
-            <div className="space-y-5">
-              <div className="rounded-xl border border-slate-200 bg-white p-5">
-                <h2 className="text-base font-semibold text-slate-900">Dashboard</h2>
-                <p className="mt-1 text-sm text-slate-500">Paparan dashboard menggunakan susun atur asal. Data dan kad metrik akan disambungkan semasa semakan fungsi.</p>
-                <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                  <span className="rounded-full bg-emerald-50 px-3 py-1 font-semibold text-emerald-700">Supabase UAT</span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">{session.user.name} · {currentRole?.name ?? session.user.roleId}</span>
-                </div>
-              </div>
-              {workspace && <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-xl border border-slate-200 bg-white p-5"><h3 className="font-semibold">Branches</h3><p className="mt-1 text-sm text-slate-500">{workspace.branches.length} cawangan dalam direktori</p></div>
-                <div className="rounded-xl border border-slate-200 bg-white p-5"><h3 className="font-semibold">Couriers</h3><p className="mt-1 text-sm text-slate-500">{workspace.couriers.length} courier dalam direktori</p></div>
-              </div>}
-            </div>
+            <DashboardUatPage staffName={session.user.name} onNavigate={navigateTo} />
           )}
           {activePage === 'user-permissions' && <UserManagementUatPage currentUser={session.user} roles={session.roles} branches={session.branches} />}
           {['agreement-history','claimed-history','backup-data'].includes(activePage) && (
