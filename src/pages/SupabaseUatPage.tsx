@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase';
 import { NewApplicationPage } from './NewApplicationPage';
 import { ApprovalListPage } from './ApprovalListPage';
 import { ApprovalDetailsPage } from './ApprovalDetailsPage';
-import { loadSupabaseApprovalApplications } from '../lib/supabaseApplications';
+import { loadSupabaseApprovalApplications } from '../lib/supabaseApprovalApplications';
 import type { InstallmentApplication } from '../types/khallegacy';
 import { ToBeClaimedUatPage } from './ToBeClaimedUatPage';
 import { PostageTrackingUatPage } from './PostageTrackingUatPage';
@@ -134,6 +134,7 @@ export function SupabaseUatPage() {
     setActivePage(page);
     setMobileSidebarOpen(false);
     if (page !== 'approval-details') setSelectedApprovalApplicationId(null);
+    if (page === 'approval-list') void refreshApprovalApplications();
   };
 
   const openApprovalDetails = (applicationId: string) => {
