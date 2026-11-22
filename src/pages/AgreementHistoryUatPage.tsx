@@ -20,7 +20,7 @@ type AgreementHistoryRecord = {
   sale_submissions: { submission_list_id: string; submission_date: string | null; postage_trackings: Array<{ status: string; tracking_number: string | null; courier: string | null; tracking_date: string | null; updated_at: string | null }> } | null;
 };
 
-type HistoryFilter = 'ALL' | 'RECEIVED' | 'CHECKING' | 'SUBMITTED' | 'DISPATCHED' | 'JCL_RECEIVED' | 'CLAIMED';
+type HistoryFilter = 'ALL' | 'RECEIVED' | 'CHECKING' | 'SUBMITTED' | 'IN_POSTAGE' | 'DELIVERED' | 'CLAIMED';
 
 const filters: Array<{ value: HistoryFilter; label: string }> = [
   { value: 'ALL', label: 'Semua Rekod' },
@@ -103,9 +103,9 @@ export function AgreementHistoryUatPage({ onBack }: { onBack: () => void }) {
       return [
         app?.case_id ?? '', app?.customer_name ?? '', app?.phone ?? '',
         record.agreement_number ?? '', record.invoice_number ?? '',
-        record.sale_submission_id ?? '', record.tracking_number ?? '',
-        record.courier_name ?? '', record.received_by ?? '', record.checked_by ?? '',
-        record.dispatched_by ?? '', record.jcl_confirmed_by ?? '', record.claimed_by ?? '',
+        record.sale_submission_id ?? '', latestTracking(record)?.tracking_number ?? '',
+        latestTracking(record)?.courier ?? '', record.received_by ?? '', record.checked_by ?? '',
+        record.claimed_by ?? '',
       ].join(' ').toLowerCase().includes(term);
     });
   }, [records, search, filter]);
@@ -120,7 +120,7 @@ export function AgreementHistoryUatPage({ onBack }: { onBack: () => void }) {
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-blue-700">Supabase UAT · Read Only</p>
           <h2 className="mt-1 text-xl font-bold">Agreement History</h2>
-          <p className="mt-1 text-sm text-slate-500">Sejarah penerimaan, checking, Sale Submission, penghantaran dan penerimaan JCL serta tuntutan agreement.</p>
+          <p className="mt-1 text-sm text-slate-500">Sejarah penerimaan, checking, Sale Submission, status postage batch sehingga Delivered ke JCL dan tuntutan agreement.</p>
         </div>
         <div className="flex gap-2">
           <button type="button" onClick={() => void load()} disabled={loading} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold disabled:opacity-50">Refresh</button>
