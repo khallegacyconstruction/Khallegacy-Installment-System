@@ -20,6 +20,7 @@ import { StockManagementUatPage } from './StockManagementUatPage';
 import { ReportsDashboardUatPage } from './ReportsDashboardUatPage';
 import { SystemSettingsUatPage } from './SystemSettingsUatPage';
 import { RoleManagementUatPage } from './RoleManagementUatPage';
+import { UserManagementUatPage } from './UserManagementUatPage';
 import { createSupabaseApplication, loadSupabaseApplicationCaseIds } from '../lib/supabaseApplications';
 import { createNewApplicationTransition, type NewApplicationPayload } from '../utils/businessRules';
 import { buildCoverPagePdfBlob } from '../utils/coverPagePdf';
@@ -333,7 +334,7 @@ export function SupabaseUatPage() {
               </div>}
             </div>
           )}
-          {activePage === 'user-permissions' && <RoleManagementUatPage />}
+          {activePage === 'user-permissions' && <UserManagementUatPage currentUser={session.user} roles={session.roles} branches={session.branches} />}
           {['agreement-history','claimed-history','backup-data'].includes(activePage) && (
             <div className="rounded-xl border border-slate-200 bg-white p-6">
               <h2 className="text-base font-semibold">{activePage === 'agreement-history' ? 'Agreement History' : activePage === 'claimed-history' ? 'Claimed History & Data' : 'Backup Data'}</h2>
