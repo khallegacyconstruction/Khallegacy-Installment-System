@@ -31,7 +31,7 @@ type ClaimRecord = {
 
 type Submission = { submission_list_id: string; submission_date: string; agreement_count: number };
 type ClaimHistory = { id: number; event_type: string; old_value: string | null; new_value: string | null; notes: string; created_at: string; changed_by_staff_id: string | null };
-type FeeCase = { application_id: number; total_financing_amount: number | string; deposit: number | string; processing_fee: number | string; sst_amount: number | string; stamp_duty: number | string; actual_cash_payment: number | string; applications: { case_id: string; customer_name: string; ic_number: string } | null };
+type FeeCase = { application_id: number; total_financing_amount: number | string; deposit: number | string; processing_fee: number | string; sst_amount: number | string; stamp_duty: number | string; agreement_fee: number | string; actual_cash_payment: number | string; applications: { case_id: string; customer_name: string; ic_number: string } | null };
 
 type EntryForm = {
   caseId: string;
@@ -43,6 +43,7 @@ type EntryForm = {
   stampDutyFee: string;
   processingFee: string;
   sstAmount: string;
+  agreementFee: string;
   actualCashPayment: string;
   branch: string;
   invoiceNumber: string;
@@ -55,7 +56,7 @@ type EntryForm = {
 const emptyEntry: EntryForm = {
   caseId: '', icNumber: '', customerName: '', item: '',
   financeAmount: '', deposit: '0', stampDutyFee: '0',
-  processingFee: '50', sstAmount: '4', actualCashPayment: '',
+  processingFee: '50', sstAmount: '4', agreementFee: '88', actualCashPayment: '',
   branch: '', invoiceNumber: '', staff1: '', staff2: '',
   claimDate: new Date().toISOString().slice(0, 10), remarks: '',
 };
@@ -90,7 +91,7 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
       supabase.from('sales_claim_batches').select('*').order('created_at', { ascending: false }),
       supabase.from('sale_submissions').select('submission_list_id,submission_date,agreement_count').order('created_at', { ascending: false }),
       supabase.from('postage_trackings').select('sale_submission_id,status,updated_at').not('sale_submission_id', 'is', null).order('updated_at', { ascending: false }),
-      supabase.from('application_financing').select('application_id,total_financing_amount,deposit,processing_fee,sst_amount,stamp_duty,actual_cash_payment,applications!inner(case_id,customer_name,ic_number)').order('updated_at', { ascending: false }).limit(100),
+      supabase.from('application_financing').select('application_id,total_financing_amount,deposit,processing_fee,sst_amount,stamp_duty,agreement_fee,actual_cash_payment,applications!inner(case_id,customer_name,ic_number)').order('updated_at', { ascending: false }).limit(100),
     ]);
     const loadError = batchResult.error || submissionResult.error || postageResult.error || feeResult.error;
     if (loadError) {
@@ -199,7 +200,7 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
 
   const saveFees = async (row: FeeCase) => {
     const edit = feeEdits[row.application_id] ?? {
-      processing: String(row.processing_fee), sst: String(row.sst_amount), stamp: String(row.stamp_duty),
+      processing: String(row.processing_fee), sst: String(row.sst_amount), stamp: String(row.stamp_duty), agreement: String(row.agreement_fee),
     };
     setError(''); setSuccess('');
     const { data, error: saveError } = await supabase.rpc('update_sales_claim_fees', {
@@ -207,6 +208,7 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
       p_processing_fee: Number(edit.processing),
       p_sst_amount: Number(edit.sst),
       p_stamp_duty_fee: Number(edit.stamp),
+      p_agreement_fee: Number(edit.agreement),
     });
     if (saveError) setError(saveError.message);
     else {
@@ -267,16 +269,17 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
         <p className="mt-1 text-sm text-slate-500">Actual Cash Payment dikira automatik oleh database dan tidak boleh diedit. Senarai memaparkan 100 rekod pembiayaan terkini.</p>
         <div className="mt-3 overflow-x-auto">
           <table className="min-w-[850px] w-full text-left text-xs">
-            <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-2">CASE ID / Customer</th><th className="p-2 text-right">Financing</th><th className="p-2">Processing Fee</th><th className="p-2">SST</th><th className="p-2">Stamp Duty</th><th className="p-2 text-right">Actual Cash</th><th className="p-2"></th></tr></thead>
+            <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-2">CASE ID / Customer</th><th className="p-2 text-right">Financing</th><th className="p-2">Processing Fee</th><th className="p-2">SST</th><th className="p-2">Stamp Duty</th><th className="p-2">Agreement Fee</th><th className="p-2 text-right">Actual Cash</th><th className="p-2"></th></tr></thead>
             <tbody>
               {feeCases.map((row) => {
-                const edit = feeEdits[row.application_id] ?? { processing: String(row.processing_fee), sst: String(row.sst_amount), stamp: String(row.stamp_duty) };
+                const edit = feeEdits[row.application_id] ?? { processing: String(row.processing_fee), sst: String(row.sst_amount), stamp: String(row.stamp_duty), agreement: String(row.agreement_fee) };
                 return <tr key={row.application_id} className="border-t border-slate-100">
                   <td className="p-2"><strong>{row.applications?.case_id ?? row.application_id}</strong><span className="block text-slate-500">{row.applications?.customer_name ?? ''}</span></td>
                   <td className="p-2 text-right">{money(row.total_financing_amount)}</td>
                   <td className="p-2"><input aria-label="Processing Fee" type="number" min="0" step="0.01" value={edit.processing} onChange={(event) => setFeeEdits((old) => ({ ...old, [row.application_id]: { ...edit, processing: event.target.value } }))} className="w-24 rounded border border-slate-300 p-1" /></td>
                   <td className="p-2"><input aria-label="SST Amount" type="number" min="0" step="0.01" value={edit.sst} onChange={(event) => setFeeEdits((old) => ({ ...old, [row.application_id]: { ...edit, sst: event.target.value } }))} className="w-20 rounded border border-slate-300 p-1" /></td>
                   <td className="p-2"><input aria-label="Stamp Duty Fee" type="number" min="0" step="0.01" value={edit.stamp} onChange={(event) => setFeeEdits((old) => ({ ...old, [row.application_id]: { ...edit, stamp: event.target.value } }))} className="w-20 rounded border border-slate-300 p-1" /></td>
+                  <td className="p-2"><input aria-label="Agreement Fee" type="number" min="0" step="0.01" value={edit.agreement} onChange={(event) => setFeeEdits((old) => ({ ...old, [row.application_id]: { ...edit, agreement: event.target.value } }))} className="w-20 rounded border border-slate-300 p-1" /></td>
                   <td className="p-2 text-right font-semibold">{money(row.actual_cash_payment)}</td>
                   <td className="p-2"><button type="button" onClick={() => void saveFees(row)} className="rounded bg-blue-600 px-3 py-1.5 font-semibold text-white">Save</button></td>
                 </tr>;
@@ -377,12 +380,12 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
                 {([
                   ['caseId','CASE ID'],['icNumber','IC Number'],['customerName','Customer Name'],['item','Item'],
                   ['financeAmount','Finance Amount'],['deposit','Deposit'],['stampDutyFee','Stamp Duty Fee'],
-                  ['processingFee','Processing Fee'],['sstAmount','SST Amount'],['actualCashPayment','Actual Cash Payment'],
+                  ['processingFee','Processing Fee'],['sstAmount','SST Amount'],['agreementFee','Agreement Fee'],['actualCashPayment','Actual Cash Payment'],
                   ['branch','Cawangan'],['invoiceNumber','Invoice'],['staff1','Staff 1'],['staff2','Staff 2'],
                   ['claimDate','Claim Date'],['remarks','Remarks'],
                 ] as [keyof EntryForm,string][]).map(([key,label]) => (
                   <label key={key} className="text-sm font-medium">{label}
-                    <input required={['caseId','icNumber','financeAmount','deposit','stampDutyFee','processingFee','sstAmount','actualCashPayment','claimDate'].includes(key)} type={key === 'claimDate' ? 'date' : 'text'} inputMode={['financeAmount','deposit','stampDutyFee','processingFee','sstAmount','actualCashPayment'].includes(key) ? 'decimal' : undefined}
+                    <input required={['caseId','icNumber','financeAmount','deposit','stampDutyFee','processingFee','sstAmount','agreementFee','actualCashPayment','claimDate'].includes(key)} type={key === 'claimDate' ? 'date' : 'text'} inputMode={['financeAmount','deposit','stampDutyFee','processingFee','sstAmount','agreementFee','actualCashPayment'].includes(key) ? 'decimal' : undefined}
                       value={entry[key]} onChange={(event) => setEntry((previous) => ({ ...previous, [key]: event.target.value }))}
                       className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
                   </label>
