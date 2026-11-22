@@ -149,27 +149,38 @@ export async function updateSupabaseApprovalApplication(
     throwIfError(taskWrite.error, 'Gagal menyimpan status tugasan');
   }
 
-  const agreementWrite = await supabase.from('application_agreements').upsert({
-    application_id: id,
+  const agreementRead = await supabase
+    .from('application_agreements')
+    .select('id')
+    .eq('application_id', id)
+    .maybeSingle();
+  throwIfError(agreementRead.error, 'Gagal membaca maklumat agreement');
+  const agreementValues = {
     checking_staff1: payload.checkingStaff1?.trim() || null,
     checking_staff2: payload.checkingStaff2?.trim() || null,
     invoice_number: payload.invoiceNumber?.trim() || null,
-    checking_status: 'Not Received',
-    checking_checklist: {
-      signAndChopPages: false,
-      customerSignatureComplete: false,
-      invoiceDetails: false,
-      cafDetails: false,
-    },
-    checking_remarks: '',
-    dispatch_status: 'Not Ready',
-    destination: 'JCL Credit',
-    dispatch_remarks: '',
-    jcl_receipt_status: 'Not Dispatched',
-    jcl_remarks: '',
-    claim_remarks: '',
     updated_at: new Date().toISOString(),
-  }, { onConflict: 'application_id', ignoreDuplicates: false });
+  };
+  const agreementWrite = agreementRead.data
+    ? await supabase.from('application_agreements').update(agreementValues).eq('application_id', id)
+    : await supabase.from('application_agreements').insert({
+        application_id: id,
+        ...agreementValues,
+        checking_status: 'Not Received',
+        checking_checklist: {
+          signAndChopPages: false,
+          customerSignatureComplete: false,
+          invoiceDetails: false,
+          cafDetails: false,
+        },
+        checking_remarks: '',
+        dispatch_status: 'Not Ready',
+        destination: 'JCL Credit',
+        dispatch_remarks: '',
+        jcl_receipt_status: 'Not Dispatched',
+        jcl_remarks: '',
+        claim_remarks: '',
+      });
   throwIfError(agreementWrite.error, 'Gagal menyimpan maklumat agreement');
 
   const timelineWrite = await supabase.from('application_timeline').insert({
