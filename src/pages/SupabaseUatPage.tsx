@@ -19,6 +19,7 @@ import { AgreementCheckingUatPage } from './AgreementCheckingUatPage';
 import { StockManagementUatPage } from './StockManagementUatPage';
 import { ReportsDashboardUatPage } from './ReportsDashboardUatPage';
 import { SystemSettingsUatPage } from './SystemSettingsUatPage';
+import { RoleManagementUatPage } from './RoleManagementUatPage';
 import { createSupabaseApplication, loadSupabaseApplicationCaseIds } from '../lib/supabaseApplications';
 import { createNewApplicationTransition, type NewApplicationPayload } from '../utils/businessRules';
 import { buildCoverPagePdfBlob } from '../utils/coverPagePdf';
@@ -332,10 +333,11 @@ export function SupabaseUatPage() {
               </div>}
             </div>
           )}
-          {['agreement-history','claimed-history','backup-data','user-permissions'].includes(activePage) && (
+          {activePage === 'user-permissions' && <RoleManagementUatPage />}
+          {['agreement-history','claimed-history','backup-data'].includes(activePage) && (
             <div className="rounded-xl border border-slate-200 bg-white p-6">
-              <h2 className="text-base font-semibold">{activePage === 'approval-list' ? 'Approval List' : activePage === 'approval-details' ? 'Approval Details' : activePage === 'agreement-history' ? 'Agreement History' : activePage === 'claimed-history' ? 'Claimed History & Data' : activePage === 'backup-data' ? 'Backup Data' : 'User & Permissions'}</h2>
-              <p className="mt-1 text-sm text-slate-500">Paparan ini akan menggunakan komponen dan reka bentuk asal. Sambungan fungsi akan disemak kemudian seperti yang dipersetujui.</p>
+              <h2 className="text-base font-semibold">{activePage === 'agreement-history' ? 'Agreement History' : activePage === 'claimed-history' ? 'Claimed History & Data' : 'Backup Data'}</h2>
+              <p className="mt-1 text-sm text-slate-500">Paparan ini akan disiapkan dalam fasa UI seterusnya.</p>
             </div>
           )}
           {error && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
