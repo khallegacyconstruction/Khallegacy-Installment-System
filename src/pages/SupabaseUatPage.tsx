@@ -105,6 +105,22 @@ export function SupabaseUatPage() {
     }
   };
 
+  const handleDownloadApprovalCoverPage = async (application: InstallmentApplication) => {
+    try {
+      const pdfBlob = await buildCoverPagePdfBlob(application, session?.branches ?? [], session ? [session.user] : []);
+      const url = URL.createObjectURL(pdfBlob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `${application.caseId}-COVER-PAGE.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      setApprovalError(err instanceof Error ? err.message : 'Cover Page PDF gagal dijana.');
+    }
+  };
+
   const handleLogout = async () => {
     setLoading(true);
     try {
@@ -254,7 +270,7 @@ export function SupabaseUatPage() {
                   onBack={() => { setActivePage(lastPageBeforeDetails); setSelectedApprovalApplicationId(null); }}
                   onUpdateDetails={() => false}
                   onDeleteApplication={() => undefined}
-                  onDownloadCoverPage={() => undefined}
+                  onDownloadCoverPage={handleDownloadApprovalCoverPage}
                 />
               </>
             ) : (
