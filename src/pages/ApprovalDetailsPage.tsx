@@ -45,6 +45,7 @@ interface ApprovalDetailsPageProps {
   onUpdateDetails: (appId: string, payload: UpdateApplicationDetailsPayload) => boolean;
   onDeleteApplication: (appId: string) => void;
   onDownloadCoverPage: (app: InstallmentApplication) => void;
+  readOnly?: boolean;
 }
 
 interface EditableProductRow {
@@ -65,6 +66,7 @@ export const ApprovalDetailsPage: React.FC<ApprovalDetailsPageProps> = ({
   onUpdateDetails,
   onDeleteApplication,
   onDownloadCoverPage,
+  readOnly = false,
 }) => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
@@ -383,7 +385,7 @@ export const ApprovalDetailsPage: React.FC<ApprovalDetailsPageProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {isEditing ? (
+          {!readOnly && isEditing ? (
             <>
               <button
                 key="btn-cancel-edit"
@@ -404,7 +406,7 @@ export const ApprovalDetailsPage: React.FC<ApprovalDetailsPageProps> = ({
                 Save Changes
               </button>
             </>
-          ) : (
+          ) : !readOnly ? (
             <>
               <button
                 key="btn-start-edit"
@@ -425,7 +427,7 @@ export const ApprovalDetailsPage: React.FC<ApprovalDetailsPageProps> = ({
                 DELETE
               </button>
             </>
-          )}
+          ) : null}
         </div>
       </div>
 
