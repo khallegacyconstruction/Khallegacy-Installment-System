@@ -12,20 +12,12 @@ type AgreementHistoryRecord = {
   checked_by: string | null;
   invoice_number: string | null;
   checking_remarks: string | null;
-  dispatch_status: string | null;
-  destination: string | null;
-  courier_name: string | null;
-  tracking_number: string | null;
-  dispatch_date: string | null;
-  dispatched_by: string | null;
-  jcl_receipt_status: string | null;
-  jcl_received_date: string | null;
-  jcl_confirmed_by: string | null;
   sale_submission_id: string | null;
   sale_submitted_at: string | null;
   claimed_date: string | null;
   claimed_by: string | null;
   applications: { case_id: string; customer_name: string; phone: string | null } | null;
+  sale_submissions: { submission_list_id: string; submission_date: string | null; postage_trackings: Array<{ status: string; tracking_number: string | null; courier: string | null; tracking_date: string | null; updated_at: string | null }> } | null;
 };
 
 type HistoryFilter = 'ALL' | 'RECEIVED' | 'CHECKING' | 'SUBMITTED' | 'DISPATCHED' | 'JCL_RECEIVED' | 'CLAIMED';
@@ -35,8 +27,8 @@ const filters: Array<{ value: HistoryFilter; label: string }> = [
   { value: 'RECEIVED', label: 'Agreement Diterima' },
   { value: 'CHECKING', label: 'Checking' },
   { value: 'SUBMITTED', label: 'Sale Submission' },
-  { value: 'DISPATCHED', label: 'Dihantar ke JCL' },
-  { value: 'JCL_RECEIVED', label: 'Diterima JCL' },
+  { value: 'IN_POSTAGE', label: 'Dalam Penghantaran' },
+  { value: 'DELIVERED', label: 'Delivered ke JCL' },
   { value: 'CLAIMED', label: 'Claimed' },
 ];
 
@@ -44,10 +36,17 @@ function formatDate(value: string | null): string {
   return value ? new Date(value).toLocaleDateString('en-MY', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 }
 
+function latestTracking(record: AgreementHistoryRecord) {
+  return [...(record.sale_submissions?.postage_trackings ?? [])].sort((a, b) =>
+    (b.updated_at ?? b.tracking_date ?? '').localeCompare(a.updated_at ?? a.tracking_date ?? ''),
+  )[0] ?? null;
+}
+
 function stage(record: AgreementHistoryRecord): string {
   if (record.claimed_date) return 'CLAIMED';
-  if (record.jcl_receipt_status === 'Received by JCL') return 'RECEIVED BY JCL';
-  if (record.dispatch_status === 'Dispatched') return 'DISPATCHED';
+  const tracking = latestTracking(record);
+  if (tracking?.status?.toUpperCase() === 'DELIVERED') return 'DELIVERED TO JCL';
+  if (tracking?.status) return tracking.status.toUpperCase();
   if (record.sale_submission_id) return 'SALE SUBMITTED';
   if (record.checking_status === 'Checking Passed') return 'CHECKING PASSED';
   if (record.checking_status) return record.checking_status.toUpperCase();
@@ -60,8 +59,8 @@ function matchesFilter(record: AgreementHistoryRecord, filter: HistoryFilter): b
     case 'RECEIVED': return Boolean(record.received_at);
     case 'CHECKING': return Boolean(record.checking_status);
     case 'SUBMITTED': return Boolean(record.sale_submission_id);
-    case 'DISPATCHED': return record.dispatch_status === 'Dispatched';
-    case 'JCL_RECEIVED': return record.jcl_receipt_status === 'Received by JCL';
+    case 'IN_POSTAGE': { const status = latestTracking(record)?.status?.toUpperCase(); return Boolean(status && status !== 'DELIVERED' && status !== 'FAILED / RETURNED'); }
+    case 'DELIVERED': return latestTracking(record)?.status?.toUpperCase() === 'DELIVERED';
     case 'CLAIMED': return Boolean(record.claimed_date);
     default: return true;
   }
@@ -80,7 +79,7 @@ export function AgreementHistoryUatPage({ onBack }: { onBack: () => void }) {
     setError('');
     const { data, error: queryError } = await supabase
       .from('application_agreements')
-      .select('id,application_id,agreement_number,received_at,received_by,checking_status,checked_at,checked_by,invoice_number,checking_remarks,dispatch_status,destination,courier_name,tracking_number,dispatch_date,dispatched_by,jcl_receipt_status,jcl_received_date,jcl_confirmed_by,sale_submission_id,sale_submitted_at,claimed_date,claimed_by,applications!inner(case_id,customer_name,phone)')
+      .select('id,application_id,agreement_number,received_at,received_by,checking_status,checked_at,checked_by,invoice_number,checking_remarks,sale_submission_id,sale_submitted_at,claimed_date,claimed_by,applications!inner(case_id,customer_name,phone),sale_submissions!application_agreements_sale_submission_id_fkey(submission_list_id,submission_date,postage_trackings(status,tracking_number,courier,tracking_date,updated_at))')
       .order('updated_at', { ascending: false })
       .limit(500);
 
@@ -112,7 +111,7 @@ export function AgreementHistoryUatPage({ onBack }: { onBack: () => void }) {
   }, [records, search, filter]);
 
   const claimedCount = records.filter((record) => Boolean(record.claimed_date)).length;
-  const jclCount = records.filter((record) => record.jcl_receipt_status === 'Received by JCL').length;
+  const deliveredCount = records.filter((record) => latestTracking(record)?.status?.toUpperCase() === 'DELIVERED').length;
   const submittedCount = records.filter((record) => Boolean(record.sale_submission_id)).length;
 
   return (
@@ -134,7 +133,7 @@ export function AgreementHistoryUatPage({ onBack }: { onBack: () => void }) {
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl border bg-slate-50 p-4"><p className="text-xs text-slate-500">Jumlah Agreement</p><p className="mt-1 text-2xl font-bold tabular-nums">{records.length}</p></div>
         <div className="rounded-xl border bg-slate-50 p-4"><p className="text-xs text-slate-500">Sale Submission</p><p className="mt-1 text-2xl font-bold tabular-nums">{submittedCount}</p></div>
-        <div className="rounded-xl border bg-slate-50 p-4"><p className="text-xs text-slate-500">JCL Received / Claimed</p><p className="mt-1 text-2xl font-bold tabular-nums">{jclCount} / {claimedCount}</p></div>
+        <div className="rounded-xl border bg-slate-50 p-4"><p className="text-xs text-slate-500">Delivered ke JCL / Claimed</p><p className="mt-1 text-2xl font-bold tabular-nums">{deliveredCount} / {claimedCount}</p></div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-[1fr_230px]">
@@ -149,7 +148,7 @@ export function AgreementHistoryUatPage({ onBack }: { onBack: () => void }) {
         <div className="overflow-x-auto rounded-xl border">
           <table className="min-w-[1120px] w-full text-left text-xs">
             <thead className="bg-slate-50 uppercase tracking-wide text-slate-500"><tr>
-              <th className="p-3">CASE ID / Customer</th><th className="p-3">Received</th><th className="p-3">Checking</th><th className="p-3">Sale Submission</th><th className="p-3">JCL Dispatch / Receipt</th><th className="p-3">Claimed</th><th className="p-3">Current Stage</th><th className="p-3 text-right">Details</th>
+              <th className="p-3">CASE ID / Customer</th><th className="p-3">Received</th><th className="p-3">Checking</th><th className="p-3">Sale Submission</th><th className="p-3">Postage Batch / Status</th><th className="p-3">Claimed</th><th className="p-3">Current Stage</th><th className="p-3 text-right">Details</th>
             </tr></thead>
             <tbody className="divide-y divide-slate-100">
               {filtered.map((record) => <tr key={record.id} className="align-top hover:bg-slate-50">
@@ -157,7 +156,7 @@ export function AgreementHistoryUatPage({ onBack }: { onBack: () => void }) {
                 <td className="p-3">{formatDate(record.received_at)}<p className="mt-1 text-slate-400">{record.received_by ?? '—'}</p></td>
                 <td className="p-3">{record.checking_status ?? '—'}<p className="mt-1 text-slate-400">{formatDate(record.checked_at)}</p></td>
                 <td className="p-3">{record.sale_submission_id ?? '—'}<p className="mt-1 text-slate-400">{formatDate(record.sale_submitted_at)}</p></td>
-                <td className="p-3">{record.dispatch_status ?? '—'}<p className="mt-1 text-slate-400">{record.courier_name ?? '—'} · {record.tracking_number ?? '—'}</p><p className="mt-1 text-slate-400">{record.jcl_receipt_status ?? '—'} · {formatDate(record.jcl_received_date)}</p></td>
+                <td className="p-3">{latestTracking(record)?.status ?? 'Awaiting postage'}<p className="mt-1 text-slate-400">{latestTracking(record)?.courier ?? '—'} · {latestTracking(record)?.tracking_number ?? '—'}</p></td>
                 <td className="p-3">{record.claimed_date ? formatDate(record.claimed_date) : '—'}<p className="mt-1 text-slate-400">{record.claimed_by ?? ''}</p></td>
                 <td className="p-3"><span className="inline-flex rounded-full bg-slate-100 px-2 py-1 font-semibold text-slate-700">{stage(record)}</span></td>
                 <td className="p-3 text-right"><button type="button" onClick={() => setSelected(record)} className="rounded-lg border border-blue-200 px-3 py-2 font-semibold text-blue-700 hover:bg-blue-50">View</button></td>
@@ -177,11 +176,9 @@ export function AgreementHistoryUatPage({ onBack }: { onBack: () => void }) {
               ['Checked By / Date', [selected.checked_by, formatDate(selected.checked_at)].filter(Boolean).join(' · ')],
               ['Invoice Number', selected.invoice_number], ['Checking Status', selected.checking_status],
               ['Sale Submission ID', selected.sale_submission_id], ['Sale Submitted At', formatDate(selected.sale_submitted_at)],
-              ['Destination', selected.destination], ['Dispatch Status', selected.dispatch_status],
-              ['Courier / Tracking', [selected.courier_name, selected.tracking_number].filter(Boolean).join(' · ')],
-              ['Dispatched By / Date', [selected.dispatched_by, formatDate(selected.dispatch_date)].filter(Boolean).join(' · ')],
-              ['JCL Receipt Status', selected.jcl_receipt_status], ['JCL Received Date', formatDate(selected.jcl_received_date)],
-              ['JCL Confirmed By', selected.jcl_confirmed_by], ['Claimed By / Date', [selected.claimed_by, formatDate(selected.claimed_date)].filter(Boolean).join(' · ')],
+              ['Postage Status', latestTracking(selected)?.status ?? 'Awaiting postage'],
+              ['Courier / Tracking', [latestTracking(selected)?.courier, latestTracking(selected)?.tracking_number].filter(Boolean).join(' · ')],
+              ['Postage Tracking Date', formatDate(latestTracking(selected)?.tracking_date ?? null)], ['Claimed By / Date', [selected.claimed_by, formatDate(selected.claimed_date)].filter(Boolean).join(' · ')],
             ].map(([label, value]) => <div key={label} className="rounded-lg border p-3"><p className="text-xs text-slate-500">{label}</p><p className="mt-1 break-words text-sm font-semibold text-slate-800">{value || '—'}</p></div>)}
           </div>
           {selected.checking_remarks && <div className="mt-3 rounded-lg border p-3"><p className="text-xs text-slate-500">Checking Remarks</p><p className="mt-1 whitespace-pre-wrap text-sm">{selected.checking_remarks}</p></div>}
