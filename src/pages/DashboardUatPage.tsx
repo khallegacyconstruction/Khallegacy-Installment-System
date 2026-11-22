@@ -100,9 +100,6 @@ export function DashboardUatPage({ staffName, onNavigate }: Props) {
   useEffect(() => { void load(); }, [load]);
 
   const metrics = useMemo(() => {
-    const taskById = new Map(tasks.map(row => [row.application_id, row]));
-    const agreementById = new Map(agreements.map(row => [row.application_id, row]));
-    const approvedIds = new Set(applications.filter(row => row.approval_status === 'Approved').map(row => row.id));
     const passedStock = tasks.filter(row => row.passed_stock === 'PASSED').length;
     const awaitingReceive = tasks.filter(row => row.passed_stock === 'PASSED' && row.agreement_received !== 'RECEIVED').length;
     const checking = tasks.filter(row => row.agreement_received === 'RECEIVED' && row.agreement_checking !== 'PASSED').length;
@@ -115,9 +112,8 @@ export function DashboardUatPage({ staffName, onNavigate }: Props) {
     const deliveredIds = new Set([...latestTracking.values()].filter(row => row.status === 'DELIVERED').map(row => row.sale_submission_id));
     const toBeClaimed = agreements.filter(row => row.sale_submission_id && deliveredIds.has(row.sale_submission_id) && !row.claimed_date).length;
     const claimed = agreements.filter(row => !!row.claimed_date).length;
-    const approvedTotal = tasks.filter(row => row.passed_stock === 'PASSED').length;
-    return { awaitingReceive, checking, readySubmission, activePostage, toBeClaimed, claimed, passedStock, approvedTotal, taskById, agreementById, approvedIds };
-  }, [tasks, agreements, tracking, applications]);
+    return { awaitingReceive, checking, readySubmission, activePostage, toBeClaimed, claimed, passedStock };
+  }, [tasks, agreements, tracking]);
 
   const cards = [
     { label: 'Total Applications', value: applicationCount, note: 'Semua permohonan direkodkan', target: 'approval-list' as const, color: 'blue' },
