@@ -37,7 +37,7 @@ type ClaimedHistoryRecord = {
     ic_number: string | null;
     phone: string | null;
     application_products: ClaimedProduct[];
-    application_financing: ClaimedFinancing[];
+    application_financing: ClaimedFinancing | null;
   } | null;
   sale_submissions: {
     submission_list_id: string;
@@ -61,7 +61,7 @@ function latestTracking(record: ClaimedHistoryRecord): ClaimedTracking | null {
 }
 
 function financing(record: ClaimedHistoryRecord): ClaimedFinancing | null {
-  return record.applications?.application_financing?.[0] ?? null;
+  return record.applications?.application_financing ?? null;
 }
 
 export function ClaimedHistoryUatPage({ onBack }: { onBack: () => void }) {
