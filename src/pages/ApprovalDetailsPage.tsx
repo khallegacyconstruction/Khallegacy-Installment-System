@@ -42,8 +42,9 @@ interface ApprovalDetailsPageProps {
   postageTrackings?: PostageTrackingRecord[];
   currentUserName: string;
   onBack: () => void;
-  onUpdateDetails: (appId: string, payload: UpdateApplicationDetailsPayload) => boolean;
-  onDeleteApplication: (appId: string) => void;
+  onUpdateDetails: (appId: string, payload: UpdateApplicationDetailsPayload) => boolean | Promise<boolean>;
+  onDeleteApplication: (appId: string) => void | Promise<void>;
+  canDelete?: boolean;
   onDownloadCoverPage: (app: InstallmentApplication) => void;
   readOnly?: boolean;
 }
@@ -67,6 +68,7 @@ export const ApprovalDetailsPage: React.FC<ApprovalDetailsPageProps> = ({
   onDeleteApplication,
   onDownloadCoverPage,
   readOnly = false,
+  canDelete = true,
 }) => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
@@ -289,7 +291,7 @@ export const ApprovalDetailsPage: React.FC<ApprovalDetailsPageProps> = ({
     setProductRows((prev) => prev.filter((p) => p.id !== rowId));
   };
 
-  const handleSaveEdit = (e?: React.FormEvent) => {
+  const handleSaveEdit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setEditError(null);
 
@@ -319,7 +321,7 @@ export const ApprovalDetailsPage: React.FC<ApprovalDetailsPageProps> = ({
       return;
     }
 
-    const ok = onUpdateDetails(application.id, {
+    const ok = await onUpdateDetails(application.id, {
       caseId: caseIdInput.trim(),
       customerName: customerNameInput.trim(),
       icNumber: icInput.trim(),
@@ -417,7 +419,7 @@ export const ApprovalDetailsPage: React.FC<ApprovalDetailsPageProps> = ({
                 <Pencil className="w-3.5 h-3.5" />
                 EDIT
               </button>
-              <button
+              {canDelete && <button
                 key="btn-delete"
                 type="button"
                 onClick={() => setDeleteConfirmOpen(true)}
@@ -425,7 +427,7 @@ export const ApprovalDetailsPage: React.FC<ApprovalDetailsPageProps> = ({
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 DELETE
-              </button>
+              </button>}
             </>
           ) : null}
         </div>
