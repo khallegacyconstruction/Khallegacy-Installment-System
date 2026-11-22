@@ -156,7 +156,7 @@ export function DocumentManagementUatPage({ onBack }: { onBack: () => void }) {
           </label>
         </div>
         {file && <p className="mt-2 text-xs text-slate-500">Dipilih: {file.name} · {formatSize(String(file.size))}</p>}
-        <button disabled={saving || !selectedApplicationId || !file || Boolean(error)} className="mt-3 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Memuat naik...' : 'Upload Document'}</button>
+        <button disabled={saving || !selectedApplicationId || !file} className="mt-3 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{saving ? 'Memuat naik...' : 'Upload Document'}</button>
       </form>
 
       <div className="rounded-xl border border-slate-200 p-4">
