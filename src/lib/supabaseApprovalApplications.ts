@@ -90,11 +90,11 @@ function mapApplication(
     };
   });
   const approvalStatus = textValue(row.approval_status, 'Approved') as ApprovalStatus;
-  const category = textValue(row.category, products[0] ? 'Apple' : 'Apple') as ProductCategory;
+  const category = textValue(row.category, textValue(productRows[0]?.category, 'Apple')) as ProductCategory;
   const stockFollowUp: StockFollowUpState = {
     colour: '',
     stockStage: taskStatus.stockStatus,
-    customerDecision: taskStatus.customerDecision,
+    customerDecision: taskStatus.customerDecision === 'PENDING' ? 'PENDING DECISION' : taskStatus.customerDecision,
     collectionConfirmation: taskStatus.collectionConfirmation,
     remark: '',
     changes: history.map((entry) => ({
