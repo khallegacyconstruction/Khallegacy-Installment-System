@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react';
-import { Info, Lock, RefreshCw, Settings2, Store, Truck, Bell } from 'lucide-react';
+import { Lock, RefreshCw, Settings2, Store, Truck, Bell } from 'lucide-react';
 import type { Branch, Courier, SystemPreferences, NotificationPreferences } from '../types/khallegacy';
 
-const notificationLabels: Array<[keyof NotificationPreferences, string]> = [
+type NotificationToggleKey = Exclude<keyof NotificationPreferences, 'dailyDigestEnabled' | 'dailyDigestTime'>;
+const notificationLabels: Array<[NotificationToggleKey, string]> = [
   ['notifyOnNewApplication','New Application'], ['notifyOnApprovalDecision','Approval Decision'],
   ['notifyOnStockStatusChange','Stock Status Change'], ['notifyOnActionPassedStock','Stock Passed'],
   ['notifyOnAgreementReceived','Agreement Received'], ['notifyOnCheckingPassed','Agreement Checking Passed'],
