@@ -86,7 +86,7 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
     const [batchResult, submissionResult, postageResult, feeResult] = await Promise.all([
       supabase.from('sales_claim_batches').select('*').order('created_at', { ascending: false }),
       supabase.from('sale_submissions').select('submission_list_id,submission_date,agreement_count').order('created_at', { ascending: false }),
-      supabase.from('postage_trackings').select('sale_submission_id,status').eq('status', 'DELIVERED'),
+      supabase.from('postage_trackings').select('sale_submission_id,status,updated_at').not('sale_submission_id', 'is', null).order('updated_at', { ascending: false }),
       supabase.from('application_financing').select('application_id,total_financing_amount,deposit,processing_fee,sst_amount,stamp_duty,actual_cash_payment,applications!inner(case_id,customer_name,ic_number)').order('updated_at', { ascending: false }).limit(100),
     ]);
     const loadError = batchResult.error || submissionResult.error || postageResult.error || feeResult.error;
@@ -99,7 +99,11 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
     } else {
       setBatches((batchResult.data ?? []) as ClaimBatch[]);
       setSubmissions((submissionResult.data ?? []) as Submission[]);
-      setDeliveredIds([...new Set((postageResult.data ?? []).map((row) => row.sale_submission_id).filter((id): id is string => Boolean(id)))]);
+      const latestStatus = new Map<string, string>();
+      for (const row of postageResult.data ?? []) {
+        if (row.sale_submission_id && !latestStatus.has(row.sale_submission_id)) latestStatus.set(row.sale_submission_id, row.status);
+      }
+      setDeliveredIds([...latestStatus.entries()].filter(([, status]) => status === 'DELIVERED').map(([id]) => id));
       setFeeCases((feeResult.data ?? []) as unknown as FeeCase[]);
     }
     setLoading(false);
