@@ -382,7 +382,7 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
                   ['claimDate','Claim Date'],['remarks','Remarks'],
                 ] as [keyof EntryForm,string][]).map(([key,label]) => (
                   <label key={key} className="text-sm font-medium">{label}
-                    <input required={['caseId','icNumber'].includes(key)} type={key === 'claimDate' ? 'date' : 'text'} inputMode={['financeAmount','deposit','stampDutyFee','processingFee','sstAmount','actualCashPayment'].includes(key) ? 'decimal' : undefined}
+                    <input required={['caseId','icNumber','financeAmount','deposit','stampDutyFee','processingFee','sstAmount','actualCashPayment','claimDate'].includes(key)} type={key === 'claimDate' ? 'date' : 'text'} inputMode={['financeAmount','deposit','stampDutyFee','processingFee','sstAmount','actualCashPayment'].includes(key) ? 'decimal' : undefined}
                       value={entry[key]} onChange={(event) => setEntry((previous) => ({ ...previous, [key]: event.target.value }))}
                       className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
                   </label>
