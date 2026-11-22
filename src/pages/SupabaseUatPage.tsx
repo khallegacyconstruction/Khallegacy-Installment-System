@@ -8,6 +8,8 @@ import { NewApplicationPage } from './NewApplicationPage';
 import { ApprovalListPage } from './ApprovalListPage';
 import { ApprovalDetailsPage } from './ApprovalDetailsPage';
 import { loadSupabaseApprovalApplications } from '../lib/supabaseApprovalApplications';
+import { deleteSupabaseApprovalApplication, updateSupabaseApprovalApplication } from '../lib/supabaseApprovalMutations';
+import type { UpdateApplicationDetailsPayload } from '../utils/businessRules';
 import type { InstallmentApplication } from '../types/khallegacy';
 import { ToBeClaimedUatPage } from './ToBeClaimedUatPage';
 import { PostageTrackingUatPage } from './PostageTrackingUatPage';
@@ -162,15 +164,40 @@ export function SupabaseUatPage() {
 
   const selectedApprovalApplication = approvalApplications.find((item) => item.id === selectedApprovalApplicationId) ?? null;
 
-  const refreshApprovalApplications = async () => {
+  const refreshApprovalApplications = async (): Promise<boolean> => {
     setApprovalLoading(true);
     setApprovalError('');
     try {
       setApprovalApplications(await loadSupabaseApprovalApplications());
+      return true;
     } catch (err) {
       setApprovalError(err instanceof Error ? err.message : 'Senarai Approval gagal dimuatkan.');
+      return false;
     } finally {
       setApprovalLoading(false);
+    }
+  };
+
+  const handleUpdateApprovalDetails = async (appId: string, payload: UpdateApplicationDetailsPayload): Promise<boolean> => {
+    setApprovalError('');
+    try {
+      await updateSupabaseApprovalApplication(appId, payload, session?.user.id ?? '', session?.user.name ?? '');
+      return await refreshApprovalApplications();
+    } catch (err) {
+      setApprovalError(err instanceof Error ? err.message : 'Perubahan Approval Details gagal disimpan.');
+      return false;
+    }
+  };
+
+  const handleDeleteApprovalApplication = async (appId: string): Promise<void> => {
+    setApprovalError('');
+    try {
+      await deleteSupabaseApprovalApplication(appId);
+      setSelectedApprovalApplicationId(null);
+      setActivePage('approval-list');
+      await refreshApprovalApplications();
+    } catch (err) {
+      setApprovalError(err instanceof Error ? err.message : 'Permohonan gagal dipadam.');
     }
   };
 
@@ -266,10 +293,10 @@ export function SupabaseUatPage() {
                   branches={session.branches}
                   users={[session.user]}
                   currentUserName={session.user.name}
-                  readOnly
+                  canDelete={hasPermission('manage_settings')}
                   onBack={() => { setActivePage(lastPageBeforeDetails); setSelectedApprovalApplicationId(null); }}
-                  onUpdateDetails={() => false}
-                  onDeleteApplication={() => undefined}
+                  onUpdateDetails={handleUpdateApprovalDetails}
+                  onDeleteApplication={handleDeleteApprovalApplication}
                   onDownloadCoverPage={handleDownloadApprovalCoverPage}
                 />
               </>
