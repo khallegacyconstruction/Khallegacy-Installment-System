@@ -41,7 +41,7 @@ import type {
 
 export const BOOTSTRAPPED_ADMIN_EMAIL = 'khallegacyconstruction@gmail.com';
 export const SYSTEM_SETTINGS_DOC_ID = 'default-settings';
-export const DIRECTORY_VERSION = 2;
+export const DIRECTORY_VERSION = 3;
 
 export enum OperationType {
   CREATE = 'create',
@@ -389,17 +389,67 @@ export async function seedInitialWorkspaceIfEmpty(user: FirebaseUser): Promise<v
     }
   };
 
-  const needsDirectoryMigration =
-    workspaceAlreadyInitialized &&
-    existingSettingsData?.systemPrefs?.directoryVersion !== DIRECTORY_VERSION;
+  const prevDirectoryVersion = Number(existingSettingsData?.systemPrefs?.directoryVersion ?? 0);
+  const needsDirectoryV2Migration = workspaceAlreadyInitialized && prevDirectoryVersion < 2;
+  const needsRoleSwapV3Migration = workspaceAlreadyInitialized && prevDirectoryVersion < 3;
 
-  if (needsDirectoryMigration) {
+  if (needsDirectoryV2Migration) {
     await replaceCollectionWithSeeds('branches', INITIAL_BRANCHES, (b) => ({ ...b }));
     await replaceCollectionWithSeeds('staff_users', INITIAL_USERS, (u) => ({
       ...toCloudStaffRecord(u),
       branchId: prefixId(u.branchId),
       roleId: prefixId(u.roleId),
     }));
+  } else {
+    await checkAndSeed('branches', INITIAL_BRANCHES, (b) => ({ ...b }));
+    await checkAndSeed('staff_users', INITIAL_USERS, (u) => ({
+      ...toCloudStaffRecord(u),
+      branchId: prefixId(u.branchId),
+      roleId: prefixId(u.roleId),
+    }));
+  }
+
+  await checkAndSeed('couriers', INITIAL_COURIERS, (c) => ({ ...c }));
+  await checkAndSeed('roles', INITIAL_ROLES, (r) => ({ ...r }));
+
+  if (needsRoleSwapV3Migration) {
+    try {
+      const rolesSnap = await getDocs(buildCollectionQuery('roles', user));
+      for (const roleDoc of rolesSnap.docs) {
+        const data = roleDoc.data();
+        const roleId = typeof data.id === 'string' ? data.id : roleDoc.id;
+        let nextName: string | null = null;
+        let nextDesc: string | null = null;
+        if (roleId === 'role-manager' || roleId.endsWith('-role-manager')) {
+          nextName = 'Management';
+          nextDesc = INITIAL_ROLES[0].description;
+        } else if (roleId === 'role-management' || roleId.endsWith('-role-management')) {
+          nextName = 'Manager';
+          nextDesc = INITIAL_ROLES[1].description;
+        }
+        if (nextName && data.name !== nextName) {
+          cacheDocMeta('roles', roleDoc.id, data);
+          await setDoc(
+            roleDoc.ref,
+            stripUndefinedDeep({
+              id: roleId,
+              name: nextName,
+              description: nextDesc ?? data.description ?? '',
+              active: Boolean(data.active),
+              permissions: Array.isArray(data.permissions) ? data.permissions : [],
+              ownerUid: data.ownerUid ?? uid,
+              createdAt: data.createdAt ?? serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            }),
+          );
+        }
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'roles');
+    }
+  }
+
+  if (needsDirectoryV2Migration || needsRoleSwapV3Migration) {
     try {
       const updatedSystemPrefs = {
         ...INITIAL_SYSTEM_PREFS,
@@ -424,17 +474,7 @@ export async function seedInitialWorkspaceIfEmpty(user: FirebaseUser): Promise<v
         `system_settings/${existingSettingsDocRefId}`,
       );
     }
-  } else {
-    await checkAndSeed('branches', INITIAL_BRANCHES, (b) => ({ ...b }));
-    await checkAndSeed('staff_users', INITIAL_USERS, (u) => ({
-      ...toCloudStaffRecord(u),
-      branchId: prefixId(u.branchId),
-      roleId: prefixId(u.roleId),
-    }));
   }
-
-  await checkAndSeed('couriers', INITIAL_COURIERS, (c) => ({ ...c }));
-  await checkAndSeed('roles', INITIAL_ROLES, (r) => ({ ...r }));
 
   if (!workspaceAlreadyInitialized) {
     await checkAndSeed('applications', INITIAL_APPLICATIONS, (a) =>
@@ -555,6 +595,13 @@ export function subscribeWorkspaceCollections(
             permissions: Array.isArray(data.permissions) ? data.permissions : [],
           };
         });
+        const roleOrder = (id: string) => {
+          if (id === 'role-manager' || id.endsWith('-role-manager')) return 0;
+          if (id === 'role-management' || id.endsWith('-role-management')) return 1;
+          if (id === 'role-sales-admin' || id.endsWith('-role-sales-admin')) return 2;
+          return 3;
+        };
+        items.sort((a, b) => roleOrder(a.id) - roleOrder(b.id) || a.name.localeCompare(b.name));
         if (items.length > 0) callbacks.onRoles(items);
       },
       handleSnapshotError('roles'),

@@ -109,7 +109,7 @@ export const INITIAL_COURIERS: Courier[] = [
 export const INITIAL_ROLES: RoleConfig[] = [
   {
     id: 'role-manager',
-    name: 'Manager',
+    name: 'Management',
     description: 'Full operational and administrative control across all branches, permissions, and system settings.',
     active: true,
     permissions: [
@@ -132,7 +132,7 @@ export const INITIAL_ROLES: RoleConfig[] = [
   },
   {
     id: 'role-management',
-    name: 'Management',
+    name: 'Manager',
     description: 'Executive oversight for approvals, stock readiness, sale submissions, claims, and branch analytics.',
     active: true,
     permissions: [
@@ -276,7 +276,7 @@ export const INITIAL_SYSTEM_PREFS: SystemPreferences = {
   defaultPageSize: 10,
   fixedDispatchDestination: 'JCL Credit',
   autoArchiveDays: 90,
-  directoryVersion: 2,
+  directoryVersion: 3,
 };
 
 const emptyChecklist = () => ({
