@@ -5,6 +5,10 @@ import { loginWithSupabase, logoutFromSupabase, type SupabaseStaffSession } from
 import { loadSupabaseWorkspaceDirectory, type SupabaseWorkspaceDirectory } from '../lib/supabaseWorkspace';
 import { supabase } from '../lib/supabase';
 import { NewApplicationPage } from './NewApplicationPage';
+import { ApprovalListPage } from './ApprovalListPage';
+import { ApprovalDetailsPage } from './ApprovalDetailsPage';
+import { loadSupabaseApprovalApplications } from '../lib/supabaseApplications';
+import type { InstallmentApplication } from '../types/khallegacy';
 import { ToBeClaimedUatPage } from './ToBeClaimedUatPage';
 import { PostageTrackingUatPage } from './PostageTrackingUatPage';
 import { SaleSubmissionUatPage } from './SaleSubmissionUatPage';
@@ -27,6 +31,11 @@ export function SupabaseUatPage() {
   const [applicationCaseIds, setApplicationCaseIds] = useState<string[]>([]);
   const [applicationError, setApplicationError] = useState('');
   const [applicationSaving, setApplicationSaving] = useState(false);
+  const [approvalApplications, setApprovalApplications] = useState<InstallmentApplication[]>([]);
+  const [selectedApprovalApplicationId, setSelectedApprovalApplicationId] = useState<string | null>(null);
+  const [lastPageBeforeDetails, setLastPageBeforeDetails] = useState<import('../types/khallegacy').PageId>('approval-list');
+  const [approvalLoading, setApprovalLoading] = useState(false);
+  const [approvalError, setApprovalError] = useState('');
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -37,17 +46,20 @@ export function SupabaseUatPage() {
     try {
       const signedIn = await loginWithSupabase(identifier, password);
       setSession(signedIn);
-      const [directory, caseIds] = await Promise.all([
+      const [directory, caseIds, applications] = await Promise.all([
         loadSupabaseWorkspaceDirectory(),
         loadSupabaseApplicationCaseIds(),
+        loadSupabaseApprovalApplications(),
       ]);
       setWorkspace(directory);
       setApplicationCaseIds(caseIds);
+      setApprovalApplications(applications);
       setPassword('');
     } catch (err) {
       await supabase.auth.signOut().catch(() => undefined);
       setSession(null);
       setWorkspace(null);
+      setApprovalApplications([]);
       setError(err instanceof Error ? err.message : 'Ujian Supabase gagal.');
     } finally {
       setLoading(false);
@@ -71,6 +83,8 @@ export function SupabaseUatPage() {
 
       await createSupabaseApplication(payload);
       setApplicationCaseIds((previous) => [payload.caseId, ...previous]);
+      const refreshedApplications = await loadSupabaseApprovalApplications();
+      setApprovalApplications(refreshedApplications);
 
       if (pdfBlob) {
         const url = URL.createObjectURL(pdfBlob);
@@ -97,6 +111,8 @@ export function SupabaseUatPage() {
       await logoutFromSupabase();
       setSession(null);
       setWorkspace(null);
+      setApprovalApplications([]);
+      setSelectedApprovalApplicationId(null);
       setIdentifier('');
       setPassword('');
       setError('');
@@ -117,6 +133,28 @@ export function SupabaseUatPage() {
   const navigateTo = (page: import('../types/khallegacy').PageId) => {
     setActivePage(page);
     setMobileSidebarOpen(false);
+    if (page !== 'approval-details') setSelectedApprovalApplicationId(null);
+  };
+
+  const openApprovalDetails = (applicationId: string) => {
+    setLastPageBeforeDetails(activePage === 'approval-details' ? 'approval-list' : activePage);
+    setSelectedApprovalApplicationId(applicationId);
+    setActivePage('approval-details');
+    setMobileSidebarOpen(false);
+  };
+
+  const selectedApprovalApplication = approvalApplications.find((item) => item.id === selectedApprovalApplicationId) ?? null;
+
+  const refreshApprovalApplications = async () => {
+    setApprovalLoading(true);
+    setApprovalError('');
+    try {
+      setApprovalApplications(await loadSupabaseApprovalApplications());
+    } catch (err) {
+      setApprovalError(err instanceof Error ? err.message : 'Senarai Approval gagal dimuatkan.');
+    } finally {
+      setApprovalLoading(false);
+    }
   };
 
   return !session ? (
@@ -162,8 +200,8 @@ export function SupabaseUatPage() {
           activePage={activePage}
           onNavigate={navigateTo}
           onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
-          applications={[]}
-          onSelectApplication={() => undefined}
+          applications={approvalApplications}
+          onSelectApplication={openApprovalDetails}
           recentActivities={[]}
           currentUser={session.user}
           currentRole={currentRole ?? session.roles[0]!}
@@ -187,6 +225,44 @@ export function SupabaseUatPage() {
                 isSaving={applicationSaving}
               />
             </section>
+          )}
+          {activePage === 'approval-list' && (
+            <section className="space-y-3">
+              {approvalError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{approvalError}</div>}
+              {approvalLoading && <p role="status" className="text-sm text-blue-700">Memuatkan Approval List...</p>}
+              <ApprovalListPage
+                applications={approvalApplications}
+                branches={session.branches}
+                users={[session.user]}
+                defaultPageSize={10}
+                onViewDetails={openApprovalDetails}
+              />
+            </section>
+          )}
+          {activePage === 'approval-details' && (
+            selectedApprovalApplication ? (
+              <>
+                {approvalError && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{approvalError}</div>}
+                <ApprovalDetailsPage
+                  application={selectedApprovalApplication}
+                  existingCaseIds={approvalApplications.map((item) => ({ id: item.id, caseId: item.caseId }))}
+                  branches={session.branches}
+                  users={[session.user]}
+                  currentUserName={session.user.name}
+                  readOnly
+                  onBack={() => { setActivePage(lastPageBeforeDetails); setSelectedApprovalApplicationId(null); }}
+                  onUpdateDetails={() => false}
+                  onDeleteApplication={() => undefined}
+                  onDownloadCoverPage={() => undefined}
+                />
+              </>
+            ) : (
+              <div className="rounded-xl border border-slate-200 bg-white p-6">
+                <h2 className="text-base font-semibold">Approval Details</h2>
+                <p className="mt-1 text-sm text-slate-500">CASE ID tidak ditemui. Kembali ke Approval List dan pilih rekod yang sah.</p>
+                <button type="button" onClick={() => navigateTo('approval-list')} className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white">Back to Approval List</button>
+              </div>
+            )
           )}
           {activePage === 'stock-management' && <StockManagementUatPage branches={session.branches} onBack={() => navigateTo('dashboard')} />}
           {activePage === 'agreement-management' && <AgreementReceiveUatPage onBack={() => navigateTo('dashboard')} />}
@@ -212,7 +288,7 @@ export function SupabaseUatPage() {
               </div>}
             </div>
           )}
-          {['approval-list','approval-details','agreement-history','claimed-history','backup-data','user-permissions'].includes(activePage) && (
+          {['agreement-history','claimed-history','backup-data','user-permissions'].includes(activePage) && (
             <div className="rounded-xl border border-slate-200 bg-white p-6">
               <h2 className="text-base font-semibold">{activePage === 'approval-list' ? 'Approval List' : activePage === 'approval-details' ? 'Approval Details' : activePage === 'agreement-history' ? 'Agreement History' : activePage === 'claimed-history' ? 'Claimed History & Data' : activePage === 'backup-data' ? 'Backup Data' : 'User & Permissions'}</h2>
               <p className="mt-1 text-sm text-slate-500">Paparan ini akan menggunakan komponen dan reka bentuk asal. Sambungan fungsi akan disemak kemudian seperti yang dipersetujui.</p>
