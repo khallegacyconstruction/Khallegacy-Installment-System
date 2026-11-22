@@ -30,6 +30,7 @@ type ClaimRecord = {
 };
 
 type Submission = { submission_list_id: string; submission_date: string; agreement_count: number };
+type FeeCase = { application_id: number; total_financing_amount: number | string; deposit: number | string; processing_fee: number | string; sst_amount: number | string; stamp_duty: number | string; actual_cash_payment: number | string; applications: { case_id: string; customer_name: string; ic_number: string } | null };
 
 type EntryForm = {
   caseId: string;
@@ -64,6 +65,8 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
   const [batches, setBatches] = useState<ClaimBatch[]>([]);
   const [records, setRecords] = useState<ClaimRecord[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [feeCases, setFeeCases] = useState<FeeCase[]>([]);
+  const [feeEdits, setFeeEdits] = useState<Record<number, { processing: string; sst: string; stamp: string }>>({});
   const [deliveredIds, setDeliveredIds] = useState<string[]>([]);
   const [selectedBatchId, setSelectedBatchId] = useState('');
   const [selectedSubmissionId, setSelectedSubmissionId] = useState('');
@@ -80,21 +83,24 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
   const loadBatches = useCallback(async () => {
     setLoading(true);
     setError('');
-    const [batchResult, submissionResult, postageResult] = await Promise.all([
+    const [batchResult, submissionResult, postageResult, feeResult] = await Promise.all([
       supabase.from('sales_claim_batches').select('*').order('created_at', { ascending: false }),
       supabase.from('sale_submissions').select('submission_list_id,submission_date,agreement_count').order('created_at', { ascending: false }),
       supabase.from('postage_trackings').select('sale_submission_id,status').eq('status', 'DELIVERED'),
+      supabase.from('application_financing').select('application_id,total_financing_amount,deposit,processing_fee,sst_amount,stamp_duty,actual_cash_payment,applications!inner(case_id,customer_name,ic_number)').order('updated_at', { ascending: false }).limit(100),
     ]);
-    const loadError = batchResult.error || submissionResult.error || postageResult.error;
+    const loadError = batchResult.error || submissionResult.error || postageResult.error || feeResult.error;
     if (loadError) {
       setError(loadError.message);
       setBatches([]);
       setSubmissions([]);
       setDeliveredIds([]);
+      setFeeCases([]);
     } else {
       setBatches((batchResult.data ?? []) as ClaimBatch[]);
       setSubmissions((submissionResult.data ?? []) as Submission[]);
       setDeliveredIds([...new Set((postageResult.data ?? []).map((row) => row.sale_submission_id).filter((id): id is string => Boolean(id)))]);
+      setFeeCases((feeResult.data ?? []) as unknown as FeeCase[]);
     }
     setLoading(false);
   }, []);
@@ -184,6 +190,24 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
     setSaving(false);
   };
 
+  const saveFees = async (row: FeeCase) => {
+    const edit = feeEdits[row.application_id] ?? {
+      processing: String(row.processing_fee), sst: String(row.sst_amount), stamp: String(row.stamp_duty),
+    };
+    setError(''); setSuccess('');
+    const { data, error: saveError } = await supabase.rpc('update_sales_claim_fees', {
+      p_application_id: row.application_id,
+      p_processing_fee: Number(edit.processing),
+      p_sst_amount: Number(edit.sst),
+      p_stamp_duty_fee: Number(edit.stamp),
+    });
+    if (saveError) setError(saveError.message);
+    else {
+      setSuccess(`Caj ${row.applications?.case_id ?? row.application_id} dikemas kini. Actual Cash Payment: ${money(data)}.`);
+      await loadBatches();
+    }
+  };
+
   const updateInvestigation = async (record: ClaimRecord, status: string) => {
     setError(''); setSuccess('');
     const { error: updateError } = await supabase.rpc('update_sales_claim_investigation', {
@@ -220,6 +244,30 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
 
       {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
       {success && <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{success}</div>}
+
+      <details className="rounded-xl border border-slate-200 p-4">
+        <summary className="cursor-pointer font-semibold">Sales Claim Fees · Processing Fee, SST & Stamp Duty</summary>
+        <p className="mt-1 text-sm text-slate-500">Actual Cash Payment dikira automatik oleh database dan tidak boleh diedit. Senarai memaparkan 100 rekod pembiayaan terkini.</p>
+        <div className="mt-3 overflow-x-auto">
+          <table className="min-w-[850px] w-full text-left text-xs">
+            <thead className="bg-slate-50 uppercase text-slate-500"><tr><th className="p-2">CASE ID / Customer</th><th className="p-2 text-right">Financing</th><th className="p-2">Processing Fee</th><th className="p-2">SST</th><th className="p-2">Stamp Duty</th><th className="p-2 text-right">Actual Cash</th><th className="p-2"></th></tr></thead>
+            <tbody>
+              {feeCases.map((row) => {
+                const edit = feeEdits[row.application_id] ?? { processing: String(row.processing_fee), sst: String(row.sst_amount), stamp: String(row.stamp_duty) };
+                return <tr key={row.application_id} className="border-t border-slate-100">
+                  <td className="p-2"><strong>{row.applications?.case_id ?? row.application_id}</strong><span className="block text-slate-500">{row.applications?.customer_name ?? ''}</span></td>
+                  <td className="p-2 text-right">{money(row.total_financing_amount)}</td>
+                  <td className="p-2"><input aria-label="Processing Fee" type="number" min="0" step="0.01" value={edit.processing} onChange={(event) => setFeeEdits((old) => ({ ...old, [row.application_id]: { ...edit, processing: event.target.value } }))} className="w-24 rounded border border-slate-300 p-1" /></td>
+                  <td className="p-2"><input aria-label="SST Amount" type="number" min="0" step="0.01" value={edit.sst} onChange={(event) => setFeeEdits((old) => ({ ...old, [row.application_id]: { ...edit, sst: event.target.value } }))} className="w-20 rounded border border-slate-300 p-1" /></td>
+                  <td className="p-2"><input aria-label="Stamp Duty Fee" type="number" min="0" step="0.01" value={edit.stamp} onChange={(event) => setFeeEdits((old) => ({ ...old, [row.application_id]: { ...edit, stamp: event.target.value } }))} className="w-20 rounded border border-slate-300 p-1" /></td>
+                  <td className="p-2 text-right font-semibold">{money(row.actual_cash_payment)}</td>
+                  <td className="p-2"><button type="button" onClick={() => void saveFees(row)} className="rounded bg-blue-600 px-3 py-1.5 font-semibold text-white">Save</button></td>
+                </tr>;
+              })}
+            </tbody>
+          </table>
+        </div>
+      </details>
 
       <div className="rounded-xl border border-slate-200 p-4">
         <h3 className="font-semibold">Terima Claim Submission List daripada JCL</h3>
