@@ -14,6 +14,7 @@ import { SalesClaimUatPage } from './SalesClaimUatPage';
 import { ApplicationCustomerManagementUatPage } from './ApplicationCustomerManagementUatPage';
 import { DocumentManagementUatPage } from './DocumentManagementUatPage';
 import { ReportsDashboardUatPage } from './ReportsDashboardUatPage';
+import { SystemSettingsUatPage } from './SystemSettingsUatPage';
 import { createSupabaseApplication, loadSupabaseApplicationCaseIds } from '../lib/supabaseApplications';
 import { createNewApplicationTransition, type NewApplicationPayload } from '../utils/businessRules';
 import { buildCoverPagePdfBlob } from '../utils/coverPagePdf';
@@ -28,7 +29,7 @@ export function SupabaseUatPage() {
   const [applicationCaseIds, setApplicationCaseIds] = useState<string[]>([]);
   const [applicationError, setApplicationError] = useState('');
   const [applicationSaving, setApplicationSaving] = useState(false);
-  const [activeUatModule, setActiveUatModule] = useState<'home' | 'to-be-claimed' | 'postage' | 'sale-submission' | 'agreement-receive' | 'agreement-checking' | 'stock-management' | 'sales-claim' | 'application-management' | 'documents' | 'reports'>('home');
+  const [activeUatModule, setActiveUatModule] = useState<'home' | 'to-be-claimed' | 'postage' | 'sale-submission' | 'agreement-receive' | 'agreement-checking' | 'stock-management' | 'sales-claim' | 'application-management' | 'documents' | 'reports' | 'system-settings'>('home');
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -169,6 +170,9 @@ export function SupabaseUatPage() {
               {session.roles.find((r) => r.id === session.user.roleId)?.permissions.includes('manage_agreement') && (
                 <button type="button" onClick={() => setActiveUatModule('agreement-checking')} className={`rounded-lg px-4 py-2 text-sm font-semibold ${activeUatModule === 'agreement-checking' ? 'bg-emerald-600 text-white' : 'border border-slate-300 hover:bg-slate-50'}`}>Agreement Checking</button>
               )}
+              {session.roles.find((r) => r.id === session.user.roleId)?.permissions.includes('manage_settings') && (
+                <button type="button" onClick={() => setActiveUatModule('system-settings')} className={`rounded-lg px-4 py-2 text-sm font-semibold ${activeUatModule === 'system-settings' ? 'bg-slate-700 text-white' : 'border border-slate-300 hover:bg-slate-50'}`}>System Settings</button>
+              )}
               {session.roles.find((r) => r.id === session.user.roleId)?.permissions.some((permission) => permission === 'view_dashboard' || permission === 'view_reports') && (
                 <button type="button" onClick={() => setActiveUatModule('reports')} className={`rounded-lg px-4 py-2 text-sm font-semibold ${activeUatModule === 'reports' ? 'bg-sky-600 text-white' : 'border border-slate-300 hover:bg-slate-50'}`}>Reports & Dashboard</button>
               )}
@@ -189,6 +193,10 @@ export function SupabaseUatPage() {
         )}
 
         {session && activeUatModule === 'home' && <ManagerPermissionOverrides session={session} />}
+
+        {session && activeUatModule === 'system-settings' && session.roles.find((role) => role.id === session.user.roleId)?.permissions.includes('manage_settings') && (
+          <SystemSettingsUatPage staffId={session.user.id} onBack={() => setActiveUatModule('home')} />
+        )}
 
         {session && activeUatModule === 'reports' && session.roles.find((role) => role.id === session.user.roleId)?.permissions.some((permission) => permission === 'view_dashboard' || permission === 'view_reports') && (
           <ReportsDashboardUatPage branches={session.branches} canExport={session.roles.find((role) => role.id === session.user.roleId)?.permissions.includes('export_reports') ?? false} onBack={() => setActiveUatModule('home')} />
