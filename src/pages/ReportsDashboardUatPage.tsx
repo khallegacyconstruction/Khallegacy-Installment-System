@@ -49,9 +49,9 @@ export function ReportsDashboardUatPage({ branches, canExport, onBack }: { branc
     ]);
     const relatedError=financeResult.error||taskResult.error||agreementResult.error;
     if(relatedError){setError(relatedError.message);setRows([]);setLoading(false);return;}
-    const financeMap=new Map((financeResult.data??[]).map((row)=>[row.application_id,row]));
-    const taskMap=new Map((taskResult.data??[]).map((row)=>[row.application_id,row]));
-    const agreementMap=new Map((agreementResult.data??[]).map((row)=>[row.application_id,row]));
+    const financeMap=new Map((financeResult.data??[]).map((row)=>[row.application_id,row] as const));
+    const taskMap=new Map((taskResult.data??[]).map((row)=>[row.application_id,row] as const));
+    const agreementMap=new Map((agreementResult.data??[]).map((row)=>[row.application_id,row] as const));
     setRows((apps??[]).map((app)=>{
       const f=financeMap.get(app.id);const t=taskMap.get(app.id);const a=agreementMap.get(app.id);
       return {
