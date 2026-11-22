@@ -12,6 +12,7 @@ import { AgreementCheckingUatPage } from './AgreementCheckingUatPage';
 import { StockManagementUatPage } from './StockManagementUatPage';
 import { SalesClaimUatPage } from './SalesClaimUatPage';
 import { ApplicationCustomerManagementUatPage } from './ApplicationCustomerManagementUatPage';
+import { DocumentManagementUatPage } from './DocumentManagementUatPage';
 import { createSupabaseApplication, loadSupabaseApplicationCaseIds } from '../lib/supabaseApplications';
 import { createNewApplicationTransition, type NewApplicationPayload } from '../utils/businessRules';
 import { buildCoverPagePdfBlob } from '../utils/coverPagePdf';
@@ -26,7 +27,7 @@ export function SupabaseUatPage() {
   const [applicationCaseIds, setApplicationCaseIds] = useState<string[]>([]);
   const [applicationError, setApplicationError] = useState('');
   const [applicationSaving, setApplicationSaving] = useState(false);
-  const [activeUatModule, setActiveUatModule] = useState<'home' | 'to-be-claimed' | 'postage' | 'sale-submission' | 'agreement-receive' | 'agreement-checking' | 'stock-management' | 'sales-claim' | 'application-management'>('home');
+  const [activeUatModule, setActiveUatModule] = useState<'home' | 'to-be-claimed' | 'postage' | 'sale-submission' | 'agreement-receive' | 'agreement-checking' | 'stock-management' | 'sales-claim' | 'application-management' | 'documents'>('home');
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -167,6 +168,9 @@ export function SupabaseUatPage() {
               {session.roles.find((r) => r.id === session.user.roleId)?.permissions.includes('manage_agreement') && (
                 <button type="button" onClick={() => setActiveUatModule('agreement-checking')} className={`rounded-lg px-4 py-2 text-sm font-semibold ${activeUatModule === 'agreement-checking' ? 'bg-emerald-600 text-white' : 'border border-slate-300 hover:bg-slate-50'}`}>Agreement Checking</button>
               )}
+              {session.roles.find((r) => r.id === session.user.roleId)?.permissions.includes('manage_documents') && (
+                <button type="button" onClick={() => setActiveUatModule('documents')} className={`rounded-lg px-4 py-2 text-sm font-semibold ${activeUatModule === 'documents' ? 'bg-cyan-600 text-white' : 'border border-slate-300 hover:bg-slate-50'}`}>Document Management</button>
+              )}
               {session.roles.find((r) => r.id === session.user.roleId)?.permissions.includes('manage_applications') && (
                 <button type="button" onClick={() => setActiveUatModule('application-management')} className={`rounded-lg px-4 py-2 text-sm font-semibold ${activeUatModule === 'application-management' ? 'bg-indigo-600 text-white' : 'border border-slate-300 hover:bg-slate-50'}`}>Application & Customer Management</button>
               )}
@@ -181,6 +185,10 @@ export function SupabaseUatPage() {
         )}
 
         {session && activeUatModule === 'home' && <ManagerPermissionOverrides session={session} />}
+
+        {session && activeUatModule === 'documents' && session.roles.find((role) => role.id === session.user.roleId)?.permissions.includes('manage_documents') && (
+          <DocumentManagementUatPage onBack={() => setActiveUatModule('home')} />
+        )}
 
         {session && activeUatModule === 'application-management' && session.roles.find((role) => role.id === session.user.roleId)?.permissions.includes('manage_applications') && (
           <ApplicationCustomerManagementUatPage branches={session.branches} onBack={() => setActiveUatModule('home')} />
