@@ -70,7 +70,7 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
   const [openHistoryId, setOpenHistoryId] = useState('');
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [feeCases, setFeeCases] = useState<FeeCase[]>([]);
-  const [feeEdits, setFeeEdits] = useState<Record<number, { processing: string; sst: string; stamp: string }>>({});
+  const [feeEdits, setFeeEdits] = useState<Record<number, { processing: string; sst: string; stamp: string; agreement: string }>>({});
   const [deliveredIds, setDeliveredIds] = useState<string[]>([]);
   const [selectedBatchId, setSelectedBatchId] = useState('');
   const [selectedSubmissionId, setSelectedSubmissionId] = useState('');
@@ -179,7 +179,7 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
       caseId: entry.caseId, icNumber: entry.icNumber, customerName: entry.customerName,
       item: entry.item, financeAmount: Number(entry.financeAmount || 0),
       deposit: Number(entry.deposit || 0), stampDutyFee: Number(entry.stampDutyFee || 0),
-      processingFee: Number(entry.processingFee || 0), sstAmount: Number(entry.sstAmount || 0),
+      processingFee: Number(entry.processingFee || 0), sstAmount: Number(entry.sstAmount || 0), agreementFee: Number(entry.agreementFee || 0),
       actualCashPayment: Number(entry.actualCashPayment || 0), branch: entry.branch,
       invoiceNumber: entry.invoiceNumber, staff1: entry.staff1, staff2: entry.staff2,
       claimDate: entry.claimDate, remarks: entry.remarks,
@@ -265,7 +265,7 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
       {success && <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{success}</div>}
 
       <details className="rounded-xl border border-slate-200 p-4">
-        <summary className="cursor-pointer font-semibold">Sales Claim Fees · Processing Fee, SST & Stamp Duty</summary>
+        <summary className="cursor-pointer font-semibold">Sales Claim Fees · Processing Fee, SST, Stamp Duty & Agreement Fee</summary>
         <p className="mt-1 text-sm text-slate-500">Actual Cash Payment dikira automatik oleh database dan tidak boleh diedit. Senarai memaparkan 100 rekod pembiayaan terkini.</p>
         <div className="mt-3 overflow-x-auto">
           <table className="min-w-[850px] w-full text-left text-xs">
@@ -385,7 +385,7 @@ export function SalesClaimUatPage({ onBack }: { onBack: () => void }) {
                   ['claimDate','Claim Date'],['remarks','Remarks'],
                 ] as [keyof EntryForm,string][]).map(([key,label]) => (
                   <label key={key} className="text-sm font-medium">{label}
-                    <input required={['caseId','icNumber','financeAmount','deposit','stampDutyFee','processingFee','sstAmount','agreementFee','actualCashPayment','claimDate'].includes(key)} type={key === 'claimDate' ? 'date' : 'text'} inputMode={['financeAmount','deposit','stampDutyFee','processingFee','sstAmount','agreementFee','actualCashPayment'].includes(key) ? 'decimal' : undefined}
+                    <input required={['caseId','icNumber','financeAmount','deposit','stampDutyFee','processingFee','sstAmount','agreementFee','actualCashPayment','claimDate'].includes(key)} type={key === 'claimDate' ? 'date' : ['financeAmount','deposit','stampDutyFee','processingFee','sstAmount','agreementFee','actualCashPayment'].includes(key) ? 'number' : 'text'} min={['financeAmount','deposit','stampDutyFee','processingFee','sstAmount','agreementFee','actualCashPayment'].includes(key) ? '0' : undefined} step={['financeAmount','deposit','stampDutyFee','processingFee','sstAmount','agreementFee','actualCashPayment'].includes(key) ? '0.01' : undefined}
                       value={entry[key]} onChange={(event) => setEntry((previous) => ({ ...previous, [key]: event.target.value }))}
                       className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
                   </label>
