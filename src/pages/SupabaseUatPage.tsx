@@ -316,7 +316,7 @@ export function SupabaseUatPage() {
           {activePage === 'postage-management' && workspace && <PostageTrackingUatPage currentUser={session.user} couriers={workspace.couriers} onBack={() => navigateTo('dashboard')} />}
           {activePage === 'to-be-claimed' && <ToBeClaimedUatPage onBack={() => navigateTo('dashboard')} />}
           {activePage === 'reports-analytics' && <ReportsDashboardUatPage branches={session.branches} canExport={hasPermission('export_reports')} onBack={() => navigateTo('dashboard')} />}
-          {activePage === 'system-settings' && <SystemSettingsUatPage staffId={session.user.id} onBack={() => navigateTo('dashboard')} />}
+          {activePage === 'system-settings' && <SystemSettingsUatPage branches={session.branches} couriers={workspace?.couriers ?? []} onBack={() => navigateTo('dashboard')} />}
           {activePage === 'dashboard' && (
             <div className="space-y-5">
               <div className="rounded-xl border border-slate-200 bg-white p-5">
