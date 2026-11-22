@@ -4,7 +4,6 @@ import { TopBar } from '../components/TopBar';
 import { loginWithSupabase, logoutFromSupabase, type SupabaseStaffSession } from '../lib/supabaseAuth';
 import { loadSupabaseWorkspaceDirectory, type SupabaseWorkspaceDirectory } from '../lib/supabaseWorkspace';
 import { supabase } from '../lib/supabase';
-import { ManagerPermissionOverrides } from './ManagerPermissionOverrides';
 import { NewApplicationPage } from './NewApplicationPage';
 import { ToBeClaimedUatPage } from './ToBeClaimedUatPage';
 import { PostageTrackingUatPage } from './PostageTrackingUatPage';
@@ -28,7 +27,6 @@ export function SupabaseUatPage() {
   const [applicationCaseIds, setApplicationCaseIds] = useState<string[]>([]);
   const [applicationError, setApplicationError] = useState('');
   const [applicationSaving, setApplicationSaving] = useState(false);
-  const [activeUatModule, setActiveUatModule] = useState<'home' | 'to-be-claimed' | 'postage' | 'sale-submission' | 'agreement-receive' | 'agreement-checking' | 'stock-management' | 'reports' | 'system-settings'>('home');
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -39,7 +37,6 @@ export function SupabaseUatPage() {
     try {
       const signedIn = await loginWithSupabase(identifier, password);
       setSession(signedIn);
-      setActiveUatModule('home');
       const [directory, caseIds] = await Promise.all([
         loadSupabaseWorkspaceDirectory(),
         loadSupabaseApplicationCaseIds(),
@@ -100,7 +97,6 @@ export function SupabaseUatPage() {
       await logoutFromSupabase();
       setSession(null);
       setWorkspace(null);
-      setActiveUatModule('home');
       setIdentifier('');
       setPassword('');
       setError('');
