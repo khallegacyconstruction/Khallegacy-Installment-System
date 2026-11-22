@@ -19,7 +19,6 @@ import { AgreementCheckingUatPage } from './AgreementCheckingUatPage';
 import { StockManagementUatPage } from './StockManagementUatPage';
 import { ReportsDashboardUatPage } from './ReportsDashboardUatPage';
 import { SystemSettingsUatPage } from './SystemSettingsUatPage';
-import { RoleManagementUatPage } from './RoleManagementUatPage';
 import { UserManagementUatPage } from './UserManagementUatPage';
 import { createSupabaseApplication, loadSupabaseApplicationCaseIds } from '../lib/supabaseApplications';
 import { createNewApplicationTransition, type NewApplicationPayload } from '../utils/businessRules';
