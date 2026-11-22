@@ -19,9 +19,6 @@ const numberValue = (value: unknown, fallback = 0): number => {
 };
 const objectValue = (value: unknown): DbRow =>
   value && typeof value === 'object' && !Array.isArray(value) ? value as DbRow : {};
-const arrayValue = (value: unknown): DbRow[] =>
-  Array.isArray(value) ? value.filter((item): item is DbRow => Boolean(item) && typeof item === 'object') : [];
-
 function mapTaskStatus(row: DbRow | undefined): TaskStatusState {
   return {
     stockStatus: textValue(row?.stock_status, 'NOT YET CHECKING') as TaskStatusState['stockStatus'],
